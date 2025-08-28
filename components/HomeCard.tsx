@@ -46,8 +46,16 @@ const HomeCard = ({
       
       {/* Content */}
       <div className="relative z-10 h-full flex flex-col">
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex items-start gap-4">
+        <div className="flex flex-col gap-3 mb-6">
+          {badge ? (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 w-fit">
+              {badge}
+            </span>
+          ) : (
+            <div className="h-6"></div>
+          )}
+          
+          <div className="flex items-center justify-between">
             <div className="p-3 rounded-xl bg-gradient-to-br from-gray-700 to-gray-800 group-hover:from-blue-600/20 group-hover:to-purple-600/20 transition-colors duration-300">
               <Image 
                 src={img} 
@@ -57,25 +65,20 @@ const HomeCard = ({
                 className="transform transition-transform duration-300 group-hover:scale-110" 
               />
             </div>
-            {badge && (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                {badge}
-              </span>
+            
+            {stats && (
+              <div className="flex gap-4">
+                {stats.map((stat, index) => (
+                  <div key={index} className="text-right">
+                    <p className="text-lg font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                      {stat.value}
+                    </p>
+                    <p className="text-xs text-gray-500">{stat.label}</p>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-          
-          {stats && (
-            <div className="flex gap-4">
-              {stats.map((stat, index) => (
-                <div key={index} className="text-right">
-                  <p className="text-lg font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                    {stat.value}
-                  </p>
-                  <p className="text-xs text-gray-500">{stat.label}</p>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         <div className="flex-1 space-y-4">
