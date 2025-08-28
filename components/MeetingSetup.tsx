@@ -5,6 +5,7 @@ import {
   VideoPreview,
   useCall,
   useCallStateHooks,
+  useStreamVideoClient,
 } from '@stream-io/video-react-sdk';
 import { motion } from 'framer-motion';
 import Alert from './Alert';
@@ -14,6 +15,7 @@ import { Input } from './ui/input';
 import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { Mic, MicOff, Video, VideoOff, Users, Settings, Volume2, Monitor } from 'lucide-react';
+import { useParticipantName } from '@/providers/ParticipantNameProvider';
 
 const MeetingSetup = ({
   setIsSetupComplete,
@@ -39,6 +41,8 @@ const MeetingSetup = ({
   const [selectedSpeaker, setSelectedSpeaker] = useState<string>('');
 
   const call = useCall();
+  const client = useStreamVideoClient();
+  const { setParticipantName: setGlobalParticipantName } = useParticipantName();
 
   if (!call) {
     throw new Error(
@@ -206,29 +210,7 @@ const MeetingSetup = ({
     }
   };
 
-  // Cleanup effect
-  useEffect(() => {
-    return () => {
-      try {
-        // Properly cleanup devices when component unmounts
-        call.camera.disable();
-        call.microphone.disable();
-        
-        // Force stop any remaining media tracks to turn off camera light
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-          .then(stream => {
-            stream.getTracks().forEach(track => {
-              track.stop();
-            });
-          })
-          .catch(() => {
-            // Ignore errors during cleanup
-          });
-      } catch (err) {
-        console.error('Error cleaning up devices:', err);
-      }
-    };
-  }, [call]);
+  // Note: Removed cleanup effect to prevent device state conflicts
 
   if (error) {
     return <Alert title={error} />;
@@ -252,24 +234,27 @@ const MeetingSetup = ({
   const handleJoinMeeting = async () => {
     try {
       if (participantName) {
-                 // Set the participant name and device states in the call metadata
-         await call.join({
-           data: { 
-             custom: {
-               participantName: participantName,
-               initialCameraEnabled: isCameraEnabled,
-               initialMicEnabled: isMicEnabled
-             }
-           }
-         });
+        // Set the global participant name
+        setGlobalParticipantName(participantName);
 
-        // Set the initial device states
+        // First, set the device states BEFORE joining
         if (!isCameraEnabled) {
           await call.camera.disable();
         }
         if (!isMicEnabled) {
           await call.microphone.disable();
         }
+
+        // Join the call with custom data
+        await call.join({
+          data: { 
+            custom: {
+              participantName: participantName,
+              initialCameraEnabled: isCameraEnabled,
+              initialMicEnabled: isMicEnabled
+            }
+          }
+        });
 
         setIsSetupComplete(true);
       }

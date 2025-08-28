@@ -23,6 +23,7 @@ import {
 import Loader from './Loader';
 import EndCallButton from './EndCallButton';
 import { cn } from '@/lib/utils';
+import { useParticipantName } from '@/providers/ParticipantNameProvider';
 
 type CallLayoutType = 'grid' | 'speaker-left' | 'speaker-right';
 
@@ -36,20 +37,47 @@ const MeetingRoom = () => {
   const callingState = useCallCallingState();
   const call = useCall();
 
+  // Get participant name from context
+  const { participantName } = useParticipantName();
+
   // Initialize devices based on setup preferences
   useEffect(() => {
-    if (call) {
+    if (call && callingState === CallingState.JOINED) {
       const initialCameraEnabled = call.state.custom?.initialCameraEnabled;
       const initialMicEnabled = call.state.custom?.initialMicEnabled;
 
-      if (initialCameraEnabled === false) {
-        call.camera.disable();
-      }
-      if (initialMicEnabled === false) {
-        call.microphone.disable();
-      }
+      // Apply device states after joining with multiple attempts
+      const applyDeviceStates = async () => {
+        try {
+          if (initialCameraEnabled === false) {
+            await call.camera.disable();
+          }
+          if (initialMicEnabled === false) {
+            await call.microphone.disable();
+          }
+        } catch (err) {
+          console.error('Error applying initial device states:', err);
+          // Retry after a short delay
+          setTimeout(async () => {
+            try {
+              if (initialCameraEnabled === false) {
+                await call.camera.disable();
+              }
+              if (initialMicEnabled === false) {
+                await call.microphone.disable();
+              }
+            } catch (retryErr) {
+              console.error('Retry failed for device states:', retryErr);
+            }
+          }, 500);
+        }
+      };
+
+      // Apply immediately and also after a delay to ensure it takes effect
+      applyDeviceStates();
+      setTimeout(applyDeviceStates, 200);
     }
-  }, [call]);
+  }, [call, callingState]);
 
   if (callingState !== CallingState.JOINED) {
     return (
