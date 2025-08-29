@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils';
 
 import ScheduleMeetingModal from '@/components/ScheduleMeetingModal';
 import { Call, useStreamVideoClient } from '@stream-io/video-react-sdk';
-import { useToast } from '@/components/ui/use-toast';import { 
+import { useToast } from '@/components/ui/use-toast';
+import { 
   Clock, 
   Users, 
   Video, 
@@ -705,6 +706,8 @@ const Home = () => {
           </div>
         </section>
       </div>
+
+      
 
       {/* Schedule Meeting Modal */}
       <ScheduleMeetingModal

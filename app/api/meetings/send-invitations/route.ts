@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { sendBulkInvitationEmails, verifyEmailConfig } from '@/lib/email';
+import { getDb, COLLECTIONS } from '@/lib/mongodb';
+
 // POST /api/meetings/send-invitations
 export async function POST(request: NextRequest) {
   try {
@@ -53,24 +55,24 @@ export async function POST(request: NextRequest) {
     });
 
     // Track email sending results in database
-    // const db = await getDb();
-    // const invitationsCollection = db.collection(COLLECTIONS.INVITATIONS || 'invitations');
+    const db = await getDb();
+    const invitationsCollection = db.collection(COLLECTIONS.INVITATIONS || 'invitations');
 
-    // const invitationRecord = {
-    //   meetingId,
-    //   hostId: userId,
-    //   hostName,
-    //   title,
-    //   startTime: new Date(startTime),
-    //   endTime: new Date(endTime),
-    //   description,
-    //   guestEmails,
-    //   emailResults,
-    //   sentAt: new Date(),
-    //   status: 'sent'
-    // };
+    const invitationRecord = {
+      meetingId,
+      hostId: userId,
+      hostName,
+      title,
+      startTime: new Date(startTime),
+      endTime: new Date(endTime),
+      description,
+      guestEmails,
+      emailResults,
+      sentAt: new Date(),
+      status: 'sent'
+    };
 
-    // await invitationsCollection.insertOne(invitationRecord);
+    await invitationsCollection.insertOne(invitationRecord);
 
     // Calculate success/failure statistics
     const successfulEmails = emailResults.filter(result => result.success);
@@ -116,19 +118,19 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // const db = await getDb();
-    // const invitationsCollection = db.collection(COLLECTIONS.INVITATIONS || 'invitations');
+    const db = await getDb();
+    const invitationsCollection = db.collection(COLLECTIONS.INVITATIONS || 'invitations');
 
-    // // Get invitation history for this meeting
-    // const invitations = await invitationsCollection
-    //   .find({ meetingId, hostId: userId })
-    //   .sort({ sentAt: -1 })
-    //   .toArray();
+    // Get invitation history for this meeting
+    const invitations = await invitationsCollection
+      .find({ meetingId, hostId: userId })
+      .sort({ sentAt: -1 })
+      .toArray();
 
-    // return NextResponse.json({
-    //   success: true,
-    //   invitations
-    // });
+    return NextResponse.json({
+      success: true,
+      invitations
+    });
 
   } catch (error) {
     console.error('Error fetching invitation history:', error);

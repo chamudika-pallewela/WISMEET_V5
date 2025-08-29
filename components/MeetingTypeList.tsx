@@ -183,6 +183,38 @@ const MeetingTypeList = () => {
 
       setCallDetail(call);
 
+      // Save meeting to database
+      try {
+        const saveResult = await fetch('/api/meetings/save', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            meetingId: id,
+            hostId: user.id,
+            hostName: user.fullName || user.username || user.emailAddresses[0].emailAddress,
+            title: meetingData.title,
+            description: meetingData.description,
+            startTime: startTime.toISOString(),
+            endTime: endTime.toISOString(),
+            guests: meetingData.guests,
+            timezone: meetingData.timezone,
+            notificationTime: meetingData.notificationTime,
+            status: 'scheduled'
+          }),
+        });
+
+        if (saveResult.ok) {
+          const saveData = await saveResult.json();
+          console.log('✅ Meeting saved to database:', saveData);
+        } else {
+          console.error('❌ Failed to save meeting to database');
+        }
+      } catch (dbError) {
+        console.error('❌ Database save error:', dbError);
+      }
+
       // Send invitation emails to guests
       if (meetingData.guests && meetingData.guests.length > 0) {
         try {
