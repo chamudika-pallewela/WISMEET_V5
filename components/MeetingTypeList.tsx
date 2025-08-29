@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import HomeCard from './HomeCard';
 import MeetingModal from './MeetingModal';
+import ScheduleMeetingModal from './ScheduleMeetingModal';
 import { Call, useStreamVideoClient } from '@stream-io/video-react-sdk';
 import { useUser } from '@clerk/nextjs';
 import Loader from './Loader';
@@ -13,6 +14,16 @@ import ReactDatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { useToast } from './ui/use-toast';
 import { Input } from './ui/input';
+
+interface MeetingData {
+  title: string;
+  guests: string[];
+  date: Date;
+  time: Date;
+  timezone: string;
+  notificationTime: number;
+  description: string;
+}
 
 const initialValues = {
   dateTime: new Date(),
@@ -121,6 +132,133 @@ const MeetingTypeList = () => {
     }
   };
 
+  const handleScheduleMeeting = async (meetingData: MeetingData) => {
+    if (!client || !user) {
+      toast({ 
+        title: 'Error',
+        description: 'Please sign in to schedule a meeting',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      setIsCreating(true);
+      const id = crypto.randomUUID();
+      const call = client.call('default', id);
+      
+      if (!call) {
+        throw new Error('Failed to create meeting');
+      }
+
+      // Combine date and time
+      const meetingDateTime = new Date(meetingData.date);
+      meetingDateTime.setHours(meetingData.time.getHours());
+      meetingDateTime.setMinutes(meetingData.time.getMinutes());
+      
+      const startTime = meetingDateTime;
+      const endTime = new Date(meetingDateTime.getTime() + (60 * 60 * 1000)); // Default 1 hour duration
+      const startsAt = startTime.toISOString();
+      const description = meetingData.description || 'Scheduled Meeting';
+
+      // Create member object with required fields
+      const member = {
+        user_id: user.id,
+        role: 'host',
+      };
+
+      await call.getOrCreate({
+        data: {
+          starts_at: startsAt,
+          members: [member],
+          custom: {
+            description,
+            host: user.fullName || user.username,
+            guests: meetingData.guests,
+            timezone: meetingData.timezone,
+            notificationTime: meetingData.notificationTime,
+          },
+        },
+      });
+
+      setCallDetail(call);
+
+      // Send invitation emails to guests
+      if (meetingData.guests && meetingData.guests.length > 0) {
+        try {
+          const invitationResponse = await fetch('/api/meetings/send-invitations', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              meetingId: call.id,
+              title: meetingData.title,
+              description: meetingData.description,
+              startTime: startTime.toISOString(),
+              endTime: endTime.toISOString(),
+              guestEmails: meetingData.guests,
+              hostName: user.fullName || user.emailAddresses[0].emailAddress
+            }),
+          });
+
+          if (invitationResponse.ok) {
+            const invitationResult = await invitationResponse.json();
+            console.log('Invitation emails sent:', invitationResult);
+            
+            // Show success message with email statistics
+            if (invitationResult.statistics) {
+              const { successful, failed, total } = invitationResult.statistics;
+              if (successful > 0) {
+                toast({
+                  title: 'Meeting Scheduled & Invitations Sent',
+                  description: `Meeting created successfully! ${successful}/${total} invitation emails sent successfully.${failed > 0 ? ` ${failed} failed.` : ''}`,
+                });
+              } else {
+                toast({
+                  title: 'Meeting Scheduled',
+                  description: 'Meeting created successfully, but invitation emails failed to send. Please check your email configuration.',
+                  variant: 'destructive'
+                });
+              }
+            }
+          } else {
+            console.error('Failed to send invitation emails');
+            toast({
+              title: 'Meeting Scheduled',
+              description: 'Meeting created successfully, but invitation emails failed to send. Please check your email configuration.',
+              variant: 'destructive'
+            });
+          }
+        } catch (emailError) {
+          console.error('Error sending invitation emails:', emailError);
+          toast({
+            title: 'Meeting Scheduled',
+            description: 'Meeting created successfully, but invitation emails failed to send. Please check your email configuration.',
+            variant: 'destructive'
+          });
+        }
+      } else {
+        // No guests to send emails to
+        toast({
+          title: 'Success',
+          description: 'Meeting scheduled successfully!',
+        });
+      }
+
+      setMeetingState(undefined);
+    } catch (error) {
+      console.error('Error scheduling meeting:', error);
+      toast({ 
+        title: 'Error',
+        description: 'Failed to schedule meeting. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   if (!client || !user) return <Loader />;
 
   const meetingLink = callDetail ? `${process.env.NEXT_PUBLIC_BASE_URL}/meeting/${callDetail.id}` : '';
@@ -197,48 +335,17 @@ const MeetingTypeList = () => {
         ]}
       />
 
-      {!callDetail ? (
-        <MeetingModal
-          isOpen={meetingState === 'isScheduleMeeting'}
-          onClose={() => setMeetingState(undefined)}
-          title="Schedule a Meeting"
-          description="Plan your next meeting with team members"
-          handleClick={createMeeting}
-        >
-          <div className="flex flex-col gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-200">
-                Meeting Description
-              </label>
-              <Textarea
-                placeholder="Enter meeting description..."
-                className="min-h-[100px] bg-gray-800/50 border-gray-700 focus:border-blue-500 focus:ring-blue-500"
-                value={values.description}
-                onChange={(e) => setValues({ ...values, description: e.target.value })}
-              />
-            </div>
+      {/* Schedule Meeting Modal */}
+      <ScheduleMeetingModal
+        isOpen={meetingState === 'isScheduleMeeting'}
+        onClose={() => setMeetingState(undefined)}
+        onSchedule={handleScheduleMeeting}
+      />
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-200">
-                Date and Time
-              </label>
-              <ReactDatePicker
-                selected={values.dateTime}
-                onChange={(date) => setValues({ ...values, dateTime: date! })}
-                showTimeSelect
-                timeFormat="HH:mm"
-                timeIntervals={15}
-                timeCaption="Time"
-                dateFormat="MMMM d, yyyy h:mm aa"
-                className="w-full rounded-lg bg-gray-800/50 border border-gray-700 p-2.5 text-white focus:border-blue-500 focus:ring-blue-500"
-                minDate={new Date()}
-              />
-            </div>
-          </div>
-        </MeetingModal>
-      ) : (
+      {/* Success Modal for Scheduled Meeting */}
+      {callDetail && (
         <MeetingModal
-          isOpen={meetingState === 'isScheduleMeeting'}
+          isOpen={meetingState === 'isScheduleMeeting' && !!callDetail}
           onClose={() => {
             setMeetingState(undefined);
             setCallDetail(undefined);

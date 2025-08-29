@@ -8,6 +8,38 @@ import Link from 'next/link';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
+import { cn } from '@/lib/utils';
+
+import ScheduleMeetingModal from '@/components/ScheduleMeetingModal';
+import { Call, useStreamVideoClient } from '@stream-io/video-react-sdk';
+import { useToast } from '@/components/ui/use-toast';import { 
+  Clock, 
+  Users, 
+  Video, 
+  Mic, 
+  Calendar, 
+  MessageSquare, 
+  Play, 
+  Share2, 
+  Copy, 
+  ArrowRight,
+  Zap,
+  Shield,
+  BarChart3,
+  Activity,
+  Star,
+  TrendingUp
+} from 'lucide-react';
+
+interface MeetingData {
+  title: string;
+  guests: string[];
+  date: Date;
+  time: Date;
+  timezone: string;
+  notificationTime: number;
+  description: string;
+}
 
 const LoadingSpinner = () => (
   <div className="flex items-center gap-2 text-gray-400">
@@ -18,6 +50,51 @@ const LoadingSpinner = () => (
     <span>Loading...</span>
   </div>
 );
+const StatCard = ({ icon: Icon, value, label, trend, className }: any) => (
+  <motion.div
+    whileHover={{ scale: 1.02, y: -2 }}
+    className={cn(
+      "relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-800/50 to-gray-900/50 p-6 border border-gray-700/30 backdrop-blur-xl",
+      className
+    )}
+  >
+    <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full blur-3xl"></div>
+    <div className="relative z-10">
+      <div className="flex items-center justify-between mb-4">
+        <div className="p-3 rounded-xl bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/20">
+          <Icon className="w-6 h-6 text-blue-400" />
+        </div>
+        {trend && (
+          <div className="flex items-center gap-1 text-green-400 text-sm">
+            <TrendingUp className="w-4 h-4" />
+            <span>{trend}</span>
+          </div>
+        )}
+      </div>
+      <div className="space-y-1">
+        <div className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+          {value}
+        </div>
+        <div className="text-sm text-gray-400">{label}</div>
+      </div>
+    </div>
+  </motion.div>
+);
+const FeatureCard = ({ icon: Icon, title, description, gradient }: any) => (
+  <motion.div
+    whileHover={{ scale: 1.02, y: -2 }}
+    className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-800/50 to-gray-900/50 p-6 border border-gray-700/30 backdrop-blur-xl hover:border-gray-600/50 transition-all duration-300"
+  >
+    <div className={`absolute inset-0 ${gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-300`}></div>
+    <div className="relative z-10">
+      <div className="p-3 rounded-xl bg-gradient-to-br from-blue-600/20 to-purple-600/20 border border-blue-500/20 mb-4 w-fit">
+        <Icon className="w-6 h-6 text-blue-400" />
+      </div>
+      <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
+      <p className="text-gray-400 text-sm leading-relaxed">{description}</p>
+    </div>
+  </motion.div>
+);
 
 const Home = () => {
   const now = new Date();
@@ -25,12 +102,139 @@ const Home = () => {
   const date = (new Intl.DateTimeFormat('en-US', { dateStyle: 'full' })).format(now);
   const { isLoaded: isUserLoaded, isSignedIn, user } = useUser();
   const [isClient, setIsClient] = useState(false);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const client = useStreamVideoClient();
+  const { toast } = useToast();
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
   const { upcomingCalls, callRecordings, isLoading } = useGetCalls();
+
+  const handleScheduleMeeting = async (meetingData: MeetingData) => {
+    if (!client || !user) {
+      toast({ 
+        title: 'Error',
+        description: 'Please sign in to schedule a meeting',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      setIsCreating(true);
+      const id = crypto.randomUUID();
+      const call = client.call('default', id);
+      
+      if (!call) {
+        throw new Error('Failed to create meeting');
+      }
+
+      // Combine date and time
+      const meetingDateTime = new Date(meetingData.date);
+      meetingDateTime.setHours(meetingData.time.getHours());
+      meetingDateTime.setMinutes(meetingData.time.getMinutes());
+      
+      const startsAt = meetingDateTime.toISOString();
+      const description = meetingData.description || 'Scheduled Meeting';
+
+      // Create member object with required fields
+      const member = {
+        user_id: user.id,
+        role: 'host',
+      };
+
+      await call.getOrCreate({
+        data: {
+          starts_at: startsAt,
+          members: [member],
+          custom: {
+            description,
+            host: user.fullName || user.username,
+            guests: meetingData.guests,
+            timezone: meetingData.timezone,
+            notificationTime: meetingData.notificationTime,
+          },
+        },
+      });
+
+      // Send invitation emails to guests
+      if (meetingData.guests && meetingData.guests.length > 0) {
+        try {
+          const invitationResponse = await fetch('/api/meetings/send-invitations', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              meetingId: call.id,
+              title: meetingData.title,
+              description: meetingData.description,
+              startTime: meetingDateTime.toISOString(),
+              endTime: new Date(meetingDateTime.getTime() + (60 * 60 * 1000)).toISOString(), // Default 1 hour duration
+              guestEmails: meetingData.guests,
+              hostName: user.fullName || user.emailAddresses[0].emailAddress
+            }),
+          });
+
+          if (invitationResponse.ok) {
+            const invitationResult = await invitationResponse.json();
+            console.log('Invitation emails sent:', invitationResult);
+            
+            // Show success message with email statistics
+            if (invitationResult.statistics) {
+              const { successful, failed, total } = invitationResult.statistics;
+              if (successful > 0) {
+                toast({
+                  title: 'Meeting Scheduled & Invitations Sent',
+                  description: `Meeting created successfully! ${successful}/${total} invitation emails sent successfully.${failed > 0 ? ` ${failed} failed.` : ''}`,
+                });
+              } else {
+                toast({
+                  title: 'Meeting Scheduled',
+                  description: 'Meeting created successfully, but invitation emails failed to send. Please check your email configuration.',
+                  variant: 'destructive'
+                });
+              }
+            }
+          } else {
+            console.error('Failed to send invitation emails');
+            toast({
+              title: 'Meeting Scheduled',
+              description: 'Meeting created successfully, but invitation emails failed to send. Please check your email configuration.',
+              variant: 'destructive'
+            });
+          }
+        } catch (emailError) {
+          console.error('Error sending invitation emails:', emailError);
+          toast({
+            title: 'Meeting Scheduled',
+            description: 'Meeting created successfully, but invitation emails failed to send. Please check your email configuration.',
+            variant: 'destructive'
+          });
+        }
+      } else {
+        // No guests to send emails to
+        toast({
+          title: 'Success',
+          description: 'Meeting scheduled successfully!',
+        });
+      }
+
+      setIsScheduleModalOpen(false);
+    } catch (error) {
+      console.error('Error scheduling meeting:', error);
+      toast({ 
+        title: 'Error',
+        description: 'Failed to schedule meeting. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   // Show loading state while user authentication is being checked
   if (!isClient || !isUserLoaded) {
@@ -200,6 +404,44 @@ const Home = () => {
             </div>
           </div>
         </motion.div>
+        {/* Premium Stats Section */}
+        <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8 }}
+            className="mb-12"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <StatCard 
+                icon={Users} 
+                value="2.4k+" 
+                label="Active Users" 
+                trend="+12%"
+                className="from-blue-500/10 to-cyan-500/10"
+              />
+              <StatCard 
+                icon={Calendar} 
+                value="186" 
+                label="Meetings Today" 
+                trend="+8%"
+                className="from-purple-500/10 to-pink-500/10"
+              />
+              <StatCard 
+                icon={BarChart3} 
+                value="99.9%" 
+                label="Uptime" 
+                trend="+0.1%"
+                className="from-green-500/10 to-emerald-500/10"
+              />
+              <StatCard 
+                icon={Zap} 
+                value="Ultra HD" 
+                label="Bandwidth" 
+                trend="+15%"
+                className="from-orange-500/10 to-red-500/10"
+              />
+            </div>
+          </motion.div>
 
         {/* Quick Actions Section */}
         <section className="px-6 lg:px-8 py-8 space-y-8">
@@ -272,12 +514,12 @@ const Home = () => {
                   <p className="text-gray-400 text-center mb-6">
                     You don't have any meetings scheduled. Would you like to schedule one now?
                   </p>
-                  <Link
-                    href="/"
+                  <button
+                    onClick={() => setIsScheduleModalOpen(true)}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
                   >
                     Schedule a Meeting
-                  </Link>
+                  </button>
                 </div>
               ) : (
                 upcomingCalls?.slice(0, 3).map((meeting, index) => (
@@ -463,6 +705,14 @@ const Home = () => {
           </div>
         </section>
       </div>
+
+      {/* Schedule Meeting Modal */}
+      <ScheduleMeetingModal
+        isOpen={isScheduleModalOpen}
+        onClose={() => setIsScheduleModalOpen(false)}
+        onSchedule={handleScheduleMeeting}
+        isSendingInvitations={isCreating}
+      />
     </motion.div>
   );
 };

@@ -6,6 +6,25 @@ import { useUser } from '@clerk/nextjs';
 import Image from 'next/image';
 import Link from 'next/link';
 import { format } from 'date-fns';
+import { useState } from 'react';
+import dynamic from 'next/dynamic';
+
+const ScheduleMeetingModal = dynamic(() => import('@/components/ScheduleMeetingModal'), {
+  ssr: false,
+  loading: () => <div>Loading modal...</div>
+});
+import { Call, useStreamVideoClient } from '@stream-io/video-react-sdk';
+import { useToast } from '@/components/ui/use-toast';
+
+interface MeetingData {
+  title: string;
+  guests: string[];
+  date: Date;
+  time: Date;
+  timezone: string;
+  notificationTime: number;
+  description: string;
+}
 
 const LoadingSpinner = () => (
   <div className="flex items-center gap-2 text-gray-400">
@@ -20,6 +39,75 @@ const LoadingSpinner = () => (
 const UpcomingMeetings = () => {
   const { upcomingCalls, isLoading } = useGetCalls();
   const { user } = useUser();
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const client = useStreamVideoClient();
+  const { toast } = useToast();
+
+  const handleScheduleMeeting = async (meetingData: MeetingData) => {
+    if (!client || !user) {
+      toast({ 
+        title: 'Error',
+        description: 'Please sign in to schedule a meeting',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      setIsCreating(true);
+      const id = crypto.randomUUID();
+      const call = client.call('default', id);
+      
+      if (!call) {
+        throw new Error('Failed to create meeting');
+      }
+
+      // Combine date and time
+      const meetingDateTime = new Date(meetingData.date);
+      meetingDateTime.setHours(meetingData.time.getHours());
+      meetingDateTime.setMinutes(meetingData.time.getMinutes());
+      
+      const startsAt = meetingDateTime.toISOString();
+      const description = meetingData.description || 'Scheduled Meeting';
+
+      // Create member object with required fields
+      const member = {
+        user_id: user.id,
+        role: 'host',
+      };
+
+      await call.getOrCreate({
+        data: {
+          starts_at: startsAt,
+          members: [member],
+          custom: {
+            description,
+            host: user.fullName || user.username,
+            guests: meetingData.guests,
+            timezone: meetingData.timezone,
+            notificationTime: meetingData.notificationTime,
+          },
+        },
+      });
+
+      setIsScheduleModalOpen(false);
+      
+      toast({
+        title: 'Success',
+        description: 'Meeting scheduled successfully! Invitations sent.',
+      });
+    } catch (error) {
+      console.error('Error scheduling meeting:', error);
+      toast({ 
+        title: 'Error',
+        description: 'Failed to schedule meeting. Please try again.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   return (
     <motion.div
@@ -65,12 +153,15 @@ const UpcomingMeetings = () => {
             <p className="text-gray-400 text-center mb-6">
               You don't have any meetings scheduled. Would you like to schedule one now?
             </p>
-            <Link
-              href="/"
+            <button
+              onClick={() => {
+                console.log('Button clicked, setting modal to open');
+                setIsScheduleModalOpen(true);
+              }}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
             >
               Schedule a Meeting
-            </Link>
+            </button>
           </div>
         ) : (
           upcomingCalls.map((meeting, index) => (
@@ -140,7 +231,7 @@ const UpcomingMeetings = () => {
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                        d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" 
+                        d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 002 2z" 
                       />
                     </svg>
                     Join Meeting
@@ -148,7 +239,10 @@ const UpcomingMeetings = () => {
                   <button 
                     onClick={() => {
                       navigator.clipboard.writeText(`${window.location.origin}/meeting/${meeting.id}`);
-                      // You might want to add a toast notification here
+                      toast({
+                        title: 'Success',
+                        description: 'Meeting link copied to clipboard'
+                      });
                     }}
                     className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-700/50 hover:bg-gray-700/70 text-gray-300 rounded-lg transition-colors"
                   >
@@ -166,6 +260,30 @@ const UpcomingMeetings = () => {
             </motion.div>
           ))
         )}
+      </div>
+
+      {/* Schedule Meeting Modal */}
+      {isScheduleModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+          <div className="bg-white text-black p-4 rounded">
+            <p>Modal is working! isOpen: {isScheduleModalOpen.toString()}</p>
+            <button onClick={() => setIsScheduleModalOpen(false)}>Close</button>
+          </div>
+        </div>
+      )}
+      
+      <ScheduleMeetingModal
+        isOpen={isScheduleModalOpen}
+        onClose={() => {
+          console.log('Modal closing');
+          setIsScheduleModalOpen(false);
+        }}
+        onSchedule={handleScheduleMeeting}
+      />
+      
+      {/* Debug info */}
+      <div className="fixed bottom-4 right-4 bg-black/80 text-white p-2 rounded text-xs">
+        Modal state: {isScheduleModalOpen ? 'OPEN' : 'CLOSED'}
       </div>
     </motion.div>
   );
