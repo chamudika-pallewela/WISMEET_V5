@@ -2,7 +2,9 @@
 
 import { motion } from 'framer-motion';
 import MeetingTypeList from '@/components/MeetingTypeList';
+import MeetingCard from '@/components/MeetingCard';
 import Image from 'next/image';
+import { useGetDatabaseMeetings } from '@/hooks/useGetDatabaseMeetings';
 import { useGetCalls } from '@/hooks/useGetCalls';
 import Link from 'next/link';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -112,7 +114,13 @@ const Home = () => {
     setIsClient(true);
   }, []);
 
-  const { upcomingCalls, callRecordings, isLoading } = useGetCalls();
+  const { upcomingMeetings, isLoading: meetingsLoading, refetch: refetchMeetings } = useGetDatabaseMeetings();
+  const { callRecordings, isLoading: recordingsLoading } = useGetCalls();
+
+  // Debug logs
+  console.log('🔍 Home Debug - upcomingMeetings:', upcomingMeetings);
+  console.log('🔍 Home Debug - meetingsLoading:', meetingsLoading);
+  console.log('🔍 Home Debug - upcomingMeetings length:', upcomingMeetings?.length);
 
   const handleScheduleMeeting = async (meetingData: MeetingData) => {
     if (!client || !user) {
@@ -192,6 +200,8 @@ const Home = () => {
                   title: 'Meeting Scheduled & Invitations Sent',
                   description: `Meeting created successfully! ${successful}/${total} invitation emails sent successfully.${failed > 0 ? ` ${failed} failed.` : ''}`,
                 });
+                // Refresh upcoming meetings after successful scheduling
+                refetchMeetings();
               } else {
                 toast({
                   title: 'Meeting Scheduled',
@@ -222,6 +232,8 @@ const Home = () => {
           title: 'Success',
           description: 'Meeting scheduled successfully!',
         });
+        // Refresh upcoming meetings after successful scheduling
+        refetchMeetings();
       }
 
       setIsScheduleModalOpen(false);
@@ -495,12 +507,12 @@ const Home = () => {
               </Link>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {isLoading ? (
-                <div className="col-span-full flex justify-center py-8">
-                  <LoadingSpinner />
-                </div>
-              ) : upcomingCalls?.length === 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {meetingsLoading ? (
+                  <div className="col-span-full flex justify-center py-8">
+                    <LoadingSpinner />
+                  </div>
+                ) : upcomingMeetings?.length === 0 ? (
                 <div className="col-span-full flex flex-col items-center justify-center py-12 px-4">
                   <div className="bg-gray-800/50 rounded-full p-4 mb-4">
                     <Image
@@ -523,108 +535,8 @@ const Home = () => {
                   </button>
                 </div>
               ) : (
-                upcomingCalls?.slice(0, 3).map((meeting, index) => (
-                  <motion.div
-                    key={meeting.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="group relative overflow-hidden rounded-xl bg-gray-800/50 p-4 hover:bg-gray-800/70 transition-colors"
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="space-y-1">
-                        <h5 className="font-medium text-white">
-                          {meeting.state.custom?.description || 'Scheduled Meeting'}
-                        </h5>
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2 text-sm text-gray-400">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" 
-                              />
-                            </svg>
-                            <span>
-                              {meeting.state.startsAt ? (
-                                format(new Date(meeting.state.startsAt), 'EEEE, MMMM d, yyyy')
-                              ) : (
-                                'Date not set'
-                              )}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-400">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" 
-                              />
-                            </svg>
-                            <span>
-                              {meeting.state.startsAt ? (
-                                format(new Date(meeting.state.startsAt), 'h:mm a')
-                              ) : (
-                                'Time not set'
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                          Upcoming
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 mb-4">
-                      <div className="flex -space-x-2">
-                        {[1, 2, 3].map((_, i) => (
-                          <div
-                            key={i}
-                            className="size-8 rounded-full bg-gray-700 border-2 border-gray-800 flex items-center justify-center"
-                          >
-                            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                          </div>
-                        ))}
-                      </div>
-                      <span className="text-sm text-gray-400">
-                        {meeting.state.members?.length || 0} Participants
-                      </span>
-                      <span className="text-sm text-gray-400">
-                        • Hosted by {meeting.state.createdBy?.id === user?.id ? 'You' : 'Other'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <Link 
-                        href={`/meeting/${meeting.id}`}
-                        className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                            d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" 
-                          />
-                        </svg>
-                        Join Meeting
-                      </Link>
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(`${window.location.origin}/meeting/${meeting.id}`);
-                          // You might want to add a toast notification here
-                        }}
-                        className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-300 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                            d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" 
-                          />
-                        </svg>
-                        Copy Link
-                      </button>
-                    </div>
-
-                    <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-blue-500 to-purple-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
-                  </motion.div>
+                upcomingMeetings?.slice(0, 3).map((meeting: any, index: number) => (
+                  <MeetingCard key={meeting.meetingId} meeting={meeting} index={index} />
                 ))
               )}
             </div>
@@ -649,7 +561,7 @@ const Home = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {isLoading ? (
+              {recordingsLoading ? (
                 <div className="col-span-full flex justify-center py-8">
                   <LoadingSpinner />
                 </div>
@@ -658,7 +570,7 @@ const Home = () => {
                   No recordings available
                 </div>
               ) : (
-                callRecordings?.slice(0, 3).map((recording, index) => (
+                callRecordings?.slice(0, 3).map((recording: any, index: number) => (
                   <motion.div
                     key={recording.filename || index}
                     initial={{ opacity: 0, y: 20 }}
