@@ -17,7 +17,7 @@ const options = {
   retryWrites: true,
   retryReads: true,
   // Security
-  ssl: process.env.NODE_ENV === 'production',
+  ssl: true, // MongoDB Atlas requires SSL/TLS
   // Monitoring
   monitorCommands: process.env.NODE_ENV === 'development',
 };

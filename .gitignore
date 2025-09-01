@@ -114,3 +114,4 @@ jspm_packages/
 
 # Environment variables file
 .env
+.env.local
