@@ -117,11 +117,11 @@ const MeetingChat = () => {
 
     try {
       if (messageType === 'private' && selectedRecipient) {
-        // Send private message
+        // Send private message using Stream Chat's mention system
+        const privateMessage = `@${selectedRecipient} ${newMessage.trim()}`;
         await channel.sendMessage({
-          text: newMessage.trim(),
-          parent_id: selectedRecipient,
-          type: 'ephemeral',
+          text: privateMessage,
+          // Use regular message type (default)
         });
       } else {
         // Send message to everyone
@@ -249,15 +249,15 @@ const MeetingChat = () => {
                                : 'bg-gray-100 text-gray-900'
                          }`}
                        >
-                         <div className="text-xs opacity-75 mb-1 flex items-center gap-1">
-                           {message.isPrivate && (
-                             <User className="h-3 w-3" />
-                           )}
-                           {message.sender.name}
-                           {message.isPrivate && (
-                             <span className="text-xs">(Private)</span>
-                           )}
-                         </div>
+                                                 <div className="text-xs opacity-75 mb-1 flex items-center gap-1">
+                          {message.text.startsWith('@') && (
+                            <User className="h-3 w-3" />
+                          )}
+                          {message.sender.name}
+                          {message.text.startsWith('@') && (
+                            <span className="text-xs">(Private)</span>
+                          )}
+                        </div>
                          <div className="text-sm">{message.text}</div>
                          <div className="text-xs opacity-75 mt-1">
                            {message.timestamp.toLocaleTimeString([], { 

@@ -38,8 +38,8 @@ export const useChatPersistence = () => {
             name: message.user.name || 'Anonymous',
           },
           timestamp: new Date(message.created_at),
-          isPrivate: message.type === 'ephemeral' || message.parent_id,
-          recipientId: message.parent_id ? message.user.id : undefined,
+          isPrivate: message.text.startsWith('@'),
+          recipientId: message.text.startsWith('@') ? message.text.split(' ')[0].substring(1) : undefined,
         };
         
         messagesRef.current.push(chatMessage);

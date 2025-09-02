@@ -125,7 +125,15 @@ const ChatHistory = ({ meetingId, isOpen, onClose }: ChatHistoryProps) => {
                             {new Date(message.timestamp).toLocaleString()}
                           </div>
                         </div>
-                        <p className="text-gray-700">{message.message}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-gray-700">{message.message}</p>
+                          {message.isPrivate && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                              <User className="h-3 w-3" />
+                              Private
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </motion.div>

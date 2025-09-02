@@ -37,8 +37,8 @@ const EndCallButton = () => {
           senderName: msg.user.name || 'Anonymous',
           message: msg.text,
           timestamp: new Date(msg.created_at),
-          isPrivate: msg.type === 'ephemeral' || msg.parent_id,
-          recipientId: msg.parent_id || null,
+          isPrivate: msg.text.startsWith('@'),
+          recipientId: msg.text.startsWith('@') ? msg.text.split(' ')[0].substring(1) : null,
         }));
 
         // Save to database
