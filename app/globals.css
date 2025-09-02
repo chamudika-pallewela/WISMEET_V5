@@ -42,6 +42,133 @@
   height: 40px;
 }
 
+/* Enhanced Grid Layout Styles for Zoom/Google Meet Experience */
+.str-video__paginated-grid-layout {
+  background: transparent;
+}
+
+.str-video__paginated-grid-layout__participant {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.str-video__paginated-grid-layout__participant:hover {
+  transform: scale(1.02);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.str-video__paginated-grid-layout__participant--speaking {
+  border: 3px solid #10b981;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.str-video__paginated-grid-layout__participant--dominant {
+  border: 3px solid #3b82f6;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.str-video__participant-view {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.str-video__participant-view__video {
+  border-radius: 12px;
+}
+
+.str-video__participant-view__avatar {
+  border-radius: 12px;
+}
+
+.str-video__participant-view__name {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-weight: 600;
+}
+
+.str-video__participant-view__audio-level {
+  background: rgba(16, 185, 129, 0.8);
+  border-radius: 50%;
+}
+
+.str-video__participant-view__audio-level--speaking {
+  background: rgba(16, 185, 129, 1);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+}
+
+/* Pagination Controls */
+.str-video__paginated-grid-layout__pagination-controls {
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  border-radius: 20px;
+  padding: 8px 16px;
+  margin: 16px;
+}
+
+.str-video__paginated-grid-layout__pagination-button {
+  background: rgba(59, 130, 246, 0.8);
+  border-radius: 50%;
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.str-video__paginated-grid-layout__pagination-button:hover {
+  background: rgba(59, 130, 246, 1);
+  transform: scale(1.1);
+}
+
+.str-video__paginated-grid-layout__pagination-button:disabled {
+  background: rgba(107, 114, 128, 0.5);
+  cursor: not-allowed;
+}
+
+/* Speaker Layout Enhancements */
+.str-video__speaker-layout__participants-bar {
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  margin: 16px;
+  padding: 8px;
+}
+
+.str-video__speaker-layout__participants-bar__participant {
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.str-video__speaker-layout__participants-bar__participant:hover {
+  transform: scale(1.05);
+}
+
+.str-video__speaker-layout__participants-bar__participant--speaking {
+  border: 2px solid #10b981;
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+}
+
+/* Responsive Grid Adjustments */
+@media (max-width: 768px) {
+  .str-video__paginated-grid-layout__participant {
+    border-radius: 8px;
+  }
+  
+  .str-video__participant-view {
+    border-radius: 8px;
+  }
+  
+  .str-video__participant-view__video {
+    border-radius: 8px;
+  }
+  
+  .str-video__participant-view__avatar {
+    border-radius: 8px;
+  }
+}
+
 .glassmorphism {
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(4px);

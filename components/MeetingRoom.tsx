@@ -11,7 +11,7 @@ import {
   useCall,
 } from '@stream-io/video-react-sdk';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Users, LayoutList, X, ChevronLeft, MessageSquare } from 'lucide-react';
+import { Users, LayoutList, X, ChevronLeft, MessageSquare, Grid3X3, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import {
@@ -29,13 +29,13 @@ import { useParticipantName } from '@/providers/ParticipantNameProvider';
 import { useChatPersistence } from '@/hooks/useChatPersistence';
 import { useChatParticipants } from '@/hooks/useChatParticipants';
 
-type CallLayoutType = 'grid' | 'speaker-left' | 'speaker-right';
+type CallLayoutType = 'auto' | 'grid' | 'speaker-left' | 'speaker-right' | 'spotlight';
 
 const MeetingRoom = () => {
   const searchParams = useSearchParams();
   const isPersonalRoom = !!searchParams.get('personal');
   const router = useRouter();
-  const [layout, setLayout] = useState<CallLayoutType>('speaker-left');
+  const [layout, setLayout] = useState<CallLayoutType>('auto');
   const [showParticipants, setShowParticipants] = useState(false);
   const [showChatHistory, setShowChatHistory] = useState(false);
   const { useCallCallingState } = useCallStateHooks();
@@ -50,6 +50,27 @@ const MeetingRoom = () => {
 
   // Initialize chat participants management
   const { debugParticipants } = useChatParticipants();
+
+  // Count active participants (excluding local user)
+  const participants = call?.state.participants || {};
+  const participantIds = Object.keys(participants);
+  const activeParticipants = participantIds.filter(id => {
+    const participant = (participants as any)[id];
+    return participant && !participant.isLocal && participant.isSpeaking;
+  });
+  const totalParticipants = participantIds.length;
+  const hasMultipleParticipants = totalParticipants > 1;
+
+  // Auto-determine best layout based on participant count
+  const getAutoLayout = (): CallLayoutType => {
+    if (totalParticipants <= 2) return 'speaker-left';
+    if (totalParticipants <= 4) return 'grid';
+    if (totalParticipants <= 6) return 'spotlight';
+    return 'grid'; // Default to grid for larger groups
+  };
+
+  // Get the effective layout (auto or manual)
+  const effectiveLayout = layout === 'auto' ? getAutoLayout() : layout;
 
   // Initialize devices based on setup preferences
   useEffect(() => {
@@ -105,13 +126,23 @@ const MeetingRoom = () => {
   }
 
   const CallLayout = () => {
-    const participantsBarPosition: 'left' | 'right' = layout === 'speaker-right' ? 'left' : 'right';
+    const participantsBarPosition: 'left' | 'right' = effectiveLayout === 'speaker-right' ? 'left' : 'right';
 
-    switch (layout) {
+    switch (effectiveLayout) {
       case 'grid':
         return (
           <div className="h-full w-full">
-            <PaginatedGridLayout />
+            <PaginatedGridLayout 
+              groupSize={hasMultipleParticipants ? 9 : 4}
+            />
+          </div>
+        );
+      case 'spotlight':
+        return (
+          <div className="h-full w-full">
+            <PaginatedGridLayout 
+              groupSize={hasMultipleParticipants ? 6 : 4}
+            />
           </div>
         );
       case 'speaker-right':
@@ -124,7 +155,13 @@ const MeetingRoom = () => {
           </div>
         );
       default:
-        return null;
+        return (
+          <div className="h-full w-full">
+            <PaginatedGridLayout 
+              groupSize={hasMultipleParticipants ? 9 : 4}
+            />
+          </div>
+        );
     }
   };
 
@@ -135,6 +172,28 @@ const MeetingRoom = () => {
         <div className="absolute -top-1/2 right-0 h-[500px] w-[500px] rounded-full bg-blue-500/10 blur-[120px]" />
         <div className="absolute -bottom-1/2 left-0 h-[500px] w-[500px] rounded-full bg-purple-500/10 blur-[120px]" />
       </div>
+
+      {/* Participant Count Indicator */}
+      {hasMultipleParticipants && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10"
+        >
+          <div className="flex items-center gap-2 bg-gray-800/80 backdrop-blur-sm px-4 py-2 rounded-full border border-gray-700">
+            <Users className="h-4 w-4 text-blue-400" />
+            <span className="text-sm text-white font-medium">
+              {totalParticipants} {totalParticipants === 1 ? 'Participant' : 'Participants'}
+            </span>
+            {activeParticipants.length > 0 && (
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                <span className="text-xs text-green-400">{activeParticipants.length} speaking</span>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
 
       {/* Main Content */}
       <div className="relative flex flex-1 overflow-hidden">
@@ -234,15 +293,31 @@ const MeetingRoom = () => {
             <span className="hidden text-sm md:inline">Layout</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="border-gray-700 bg-gray-800">
-            {['Grid', 'Speaker-Left', 'Speaker-Right'].map((item) => (
-              <DropdownMenuItem
-                key={item}
-                onClick={() => setLayout(item.toLowerCase() as CallLayoutType)}
-                className="text-white hover:bg-gray-700"
-              >
-                {item}
-              </DropdownMenuItem>
-            ))}
+            {[
+              { key: 'auto', label: 'Auto', icon: User },
+              { key: 'grid', label: 'Grid', icon: Grid3X3 },
+              { key: 'speaker-left', label: 'Speaker Left', icon: User },
+              { key: 'speaker-right', label: 'Speaker Right', icon: User },
+              { key: 'spotlight', label: 'Spotlight', icon: Grid3X3 },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <DropdownMenuItem
+                  key={item.key}
+                  onClick={() => setLayout(item.key as CallLayoutType)}
+                  className={cn(
+                    "text-white hover:bg-gray-700 flex items-center gap-2",
+                    layout === item.key && "bg-blue-600 hover:bg-blue-700"
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                  {layout === item.key && (
+                    <span className="ml-auto text-xs bg-blue-500 px-2 py-1 rounded">Active</span>
+                  )}
+                </DropdownMenuItem>
+              );
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -259,6 +334,11 @@ const MeetingRoom = () => {
         >
           <Users className="h-5 w-5" />
           <span className="hidden text-sm md:inline">Participants</span>
+          {hasMultipleParticipants && (
+            <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+              {totalParticipants}
+            </span>
+          )}
         </button>
 
         <button
