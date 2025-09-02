@@ -11,7 +11,7 @@ import {
   useCall,
 } from '@stream-io/video-react-sdk';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Users, LayoutList, X, ChevronLeft } from 'lucide-react';
+import { Users, LayoutList, X, ChevronLeft, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import {
@@ -22,8 +22,12 @@ import {
 } from './ui/dropdown-menu';
 import Loader from './Loader';
 import EndCallButton from './EndCallButton';
+import MeetingChat from './MeetingChat';
+import ChatHistory from './ChatHistory';
 import { cn } from '@/lib/utils';
 import { useParticipantName } from '@/providers/ParticipantNameProvider';
+import { useChatPersistence } from '@/hooks/useChatPersistence';
+import { useChatParticipants } from '@/hooks/useChatParticipants';
 
 type CallLayoutType = 'grid' | 'speaker-left' | 'speaker-right';
 
@@ -33,12 +37,19 @@ const MeetingRoom = () => {
   const router = useRouter();
   const [layout, setLayout] = useState<CallLayoutType>('speaker-left');
   const [showParticipants, setShowParticipants] = useState(false);
+  const [showChatHistory, setShowChatHistory] = useState(false);
   const { useCallCallingState } = useCallStateHooks();
   const callingState = useCallCallingState();
   const call = useCall();
 
   // Get participant name from context
   const { participantName } = useParticipantName();
+
+  // Initialize chat persistence
+  useChatPersistence();
+
+  // Initialize chat participants management
+  const { debugParticipants } = useChatParticipants();
 
   // Initialize devices based on setup preferences
   useEffect(() => {
@@ -159,9 +170,32 @@ const MeetingRoom = () => {
                     <X className="h-5 w-5" />
                   </button>
                 </div>
-                <CallParticipantsList 
-                  onClose={() => setShowParticipants(false)}
-                />
+                <div className="flex-1 overflow-y-auto">
+                  <CallParticipantsList 
+                    onClose={() => setShowParticipants(false)}
+                  />
+                  
+                  {/* Manual Chat Access Button */}
+                  <div className="p-4 border-t border-gray-800">
+                    <button
+                      onClick={() => {
+                        // This will trigger the chat participants hook
+                        console.log('🔄 Manually refreshing chat access...');
+                      }}
+                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm mb-2"
+                    >
+                      🔄 Refresh Chat Access
+                    </button>
+                    <button
+                      onClick={() => {
+                        debugParticipants();
+                      }}
+                      className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                    >
+                      🔍 Debug Participants
+                    </button>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
@@ -227,8 +261,26 @@ const MeetingRoom = () => {
           <span className="hidden text-sm md:inline">Participants</span>
         </button>
 
+        <button
+          onClick={() => setShowChatHistory(true)}
+          className="flex items-center gap-2 rounded-lg bg-gray-800 px-3 py-2 text-white transition-colors hover:bg-gray-700 md:px-4"
+        >
+          <MessageSquare className="h-5 w-5" />
+          <span className="hidden text-sm md:inline">History</span>
+        </button>
+
         {!isPersonalRoom && <EndCallButton />}
       </motion.div>
+
+      {/* Chat Component */}
+      <MeetingChat />
+
+      {/* Chat History Modal */}
+      <ChatHistory
+        meetingId={call?.id || ''}
+        isOpen={showChatHistory}
+        onClose={() => setShowChatHistory(false)}
+      />
     </div>
   );
 };

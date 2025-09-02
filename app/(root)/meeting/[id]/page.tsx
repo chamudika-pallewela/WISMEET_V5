@@ -10,6 +10,7 @@ import { useGetCallById } from '@/hooks/useGetCallById';
 import Alert from '@/components/Alert';
 import MeetingSetup from '@/components/MeetingSetup';
 import MeetingRoom from '@/components/MeetingRoom';
+import StreamChatProvider from '@/providers/StreamChatProvider';
 
 const MeetingPage = () => {
   const { id } = useParams();
@@ -33,11 +34,13 @@ const MeetingPage = () => {
   return (
     <main className="h-screen w-full">
       <StreamCall call={call}>
-        {!isSetupComplete ? (
-          <MeetingSetup setIsSetupComplete={setIsSetupComplete} />
-        ) : (
-          <MeetingRoom />
-        )}
+        <StreamChatProvider>
+          {!isSetupComplete ? (
+            <MeetingSetup setIsSetupComplete={setIsSetupComplete} />
+          ) : (
+            <MeetingRoom />
+          )}
+        </StreamChatProvider>
       </StreamCall>
     </main>
   );

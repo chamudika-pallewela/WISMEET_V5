@@ -198,6 +198,58 @@ export async function ensureDatabaseIndexes() {
   } catch (error) {
     console.warn('⚠️ Failed to create database indexes:', error);
   }
+}
+
+/**
+ * Ensures all required collections exist
+ */
+export async function ensureCollectionsExist() {
+  try {
+    const db = await getDb();
+    
+    // List existing collections
+    const existingCollections = await db.listCollections().toArray();
+    const existingCollectionNames = existingCollections.map(c => c.name);
+    
+    console.log('📊 Existing collections:', existingCollectionNames);
+    
+    // Check if required collections exist
+    const requiredCollections = Object.values(COLLECTIONS);
+    const missingCollections = requiredCollections.filter(
+      name => !existingCollectionNames.includes(name)
+    );
+    
+    if (missingCollections.length > 0) {
+      console.log('⚠️ Missing collections:', missingCollections);
+      
+      // Create missing collections by inserting a dummy document
+      for (const collectionName of missingCollections) {
+        try {
+          const collection = db.collection(collectionName);
+          await collection.insertOne({ _init: true, createdAt: new Date() });
+          await collection.deleteOne({ _init: true });
+          console.log('✅ Created collection:', collectionName);
+        } catch (error) {
+          console.error('❌ Failed to create collection:', collectionName, error);
+        }
+      }
+    } else {
+      console.log('✅ All required collections exist');
+    }
+    
+    return {
+      success: true,
+      existingCollections: existingCollectionNames,
+      requiredCollections,
+      missingCollections
+    };
+  } catch (error) {
+    console.error('❌ Failed to ensure collections exist:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
 } 
 
 /**
@@ -366,6 +418,263 @@ export const listAllMeetings = async () => {
       error: error instanceof Error ? error.message : 'Unknown error',
       count: 0,
       meetings: []
+    };
+  }
+}; 
+
+/**
+ * Saves a chat message to the database
+ */
+export const saveChatMessage = async (messageData: {
+  meetingId: string;
+  senderId: string;
+  senderName: string;
+  message: string;
+  messageType: 'text' | 'file' | 'reaction';
+  timestamp: Date;
+  isPrivate?: boolean;
+  recipientId?: string;
+  fileUrl?: string;
+  fileName?: string;
+}) => {
+  try {
+    const db = await getDb();
+    const collection = db.collection(COLLECTIONS.MESSAGES);
+    
+    const messageDoc = cleanDoc({
+      messageId: `${messageData.meetingId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      meetingId: messageData.meetingId,
+      senderId: messageData.senderId,
+      senderName: messageData.senderName,
+      message: messageData.message,
+      messageType: messageData.messageType,
+      timestamp: messageData.timestamp,
+      isPrivate: messageData.isPrivate || false,
+      recipientId: messageData.recipientId || null,
+      fileUrl: messageData.fileUrl || null,
+      fileName: messageData.fileName || null,
+      createdAt: new Date()
+    });
+    
+    const result = await collection.insertOne(messageDoc);
+    console.log('✅ Chat message saved to database:', result.insertedId);
+    
+    return {
+      success: true,
+      insertedId: result.insertedId,
+      messageId: messageDoc.messageId
+    };
+  } catch (error) {
+    console.error('❌ Failed to save chat message to database:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+};
+
+/**
+ * Retrieves chat messages for a specific meeting
+ */
+export const getChatMessages = async (meetingId: string, limit: number = 50) => {
+  try {
+    console.log('🔍 Getting chat messages for meeting:', meetingId);
+    const db = await getDb();
+    const collection = db.collection(COLLECTIONS.MESSAGES);
+    
+    console.log('📊 Collection name:', COLLECTIONS.MESSAGES);
+    
+    const messages = await collection.find({
+      meetingId,
+      isPrivate: false // Only get public messages
+    })
+    .sort({ timestamp: -1 })
+    .limit(limit)
+    .toArray();
+    
+    console.log('✅ Found', messages.length, 'public messages');
+    
+    // If no messages exist, return empty array (this is normal for new meetings)
+    return {
+      success: true,
+      messages: messages.reverse() // Return in chronological order
+    };
+  } catch (error) {
+    console.error('❌ Failed to retrieve chat messages:', error);
+    console.error('❌ Error details:', {
+      meetingId,
+      limit,
+      collection: COLLECTIONS.MESSAGES,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      messages: []
+    };
+  }
+};
+
+/**
+ * Retrieves private messages for a specific user in a meeting
+ */
+export const getPrivateMessages = async (meetingId: string, userId: string) => {
+  try {
+    const db = await getDb();
+    const collection = db.collection(COLLECTIONS.MESSAGES);
+    
+    const messages = await collection.find({
+      meetingId,
+      isPrivate: true,
+      $or: [
+        { senderId: userId },
+        { recipientId: userId }
+      ]
+    })
+    .sort({ timestamp: 1 })
+    .toArray();
+    
+    return {
+      success: true,
+      messages
+    };
+  } catch (error) {
+    console.error('❌ Failed to retrieve private messages:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      messages: []
+    };
+  }
+};
+
+/**
+ * Deletes a chat message (for sender or meeting host)
+ */
+export const deleteChatMessage = async (messageId: string, userId: string, isHost: boolean = false) => {
+  try {
+    const db = await getDb();
+    const collection = db.collection(COLLECTIONS.MESSAGES);
+    
+    // Find the message first to check permissions
+    const message = await collection.findOne({ messageId });
+    
+    if (!message) {
+      return {
+        success: false,
+        error: 'Message not found'
+      };
+    }
+    
+    // Check if user can delete the message
+    if (message.senderId !== userId && !isHost) {
+      return {
+        success: false,
+        error: 'Unauthorized to delete this message'
+      };
+    }
+    
+    const result = await collection.deleteOne({ messageId });
+    
+    return {
+      success: true,
+      deletedCount: result.deletedCount
+    };
+  } catch (error) {
+    console.error('❌ Failed to delete chat message:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+};
+
+/**
+ * Creates a chat session for a meeting
+ */
+export const createChatSession = async (meetingId: string, userId: string) => {
+  try {
+    const db = await getDb();
+    const collection = db.collection(COLLECTIONS.CHAT_SESSIONS);
+    
+    const sessionDoc = cleanDoc({
+      sessionId: `${meetingId}_${userId}_${Date.now()}`,
+      meetingId,
+      userId,
+      joinedAt: new Date(),
+      lastActivity: new Date(),
+      isActive: true
+    });
+    
+    const result = await collection.insertOne(sessionDoc);
+    
+    return {
+      success: true,
+      sessionId: sessionDoc.sessionId
+    };
+  } catch (error) {
+    console.error('❌ Failed to create chat session:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+};
+
+/**
+ * Updates chat session activity
+ */
+export const updateChatSessionActivity = async (sessionId: string) => {
+  try {
+    const db = await getDb();
+    const collection = db.collection(COLLECTIONS.CHAT_SESSIONS);
+    
+    await collection.updateOne(
+      { sessionId },
+      { 
+        $set: { 
+          lastActivity: new Date()
+        }
+      }
+    );
+    
+    return {
+      success: true
+    };
+  } catch (error) {
+    console.error('❌ Failed to update chat session activity:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+};
+
+/**
+ * Gets active chat participants for a meeting
+ */
+export const getActiveChatParticipants = async (meetingId: string) => {
+  try {
+    const db = await getDb();
+    const collection = db.collection(COLLECTIONS.CHAT_SESSIONS);
+    
+    const participants = await collection.find({
+      meetingId,
+      isActive: true,
+      lastActivity: { $gte: new Date(Date.now() - 5 * 60 * 1000) } // Active in last 5 minutes
+    }).toArray();
+    
+    return {
+      success: true,
+      participants
+    };
+  } catch (error) {
+    console.error('❌ Failed to get active chat participants:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      participants: []
     };
   }
 }; 
