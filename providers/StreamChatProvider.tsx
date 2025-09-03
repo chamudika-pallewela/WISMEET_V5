@@ -209,12 +209,12 @@ export const StreamChatProvider = ({ children }: StreamChatProviderProps) => {
             const participantIds = Object.keys(videoParticipants).filter(id => id !== user.id);
             
             if (participantIds.length > 0) {
-              console.log('👥 Adding other participants to chat:', participantIds);
-              await channel.addMembers(participantIds);
-              console.log('✅ Added other participants to chat channel');
+              console.log('👥 Found video participants:', participantIds);
+              // Note: We'll handle participant addition through the useChatParticipants hook
+              // which will create Stream Chat users first before adding them to the channel
             }
           } catch (error) {
-            console.log('ℹ️ Could not add other participants to chat:', error);
+            console.log('ℹ️ Could not process video participants:', error);
           }
         };
 
@@ -233,9 +233,9 @@ export const StreamChatProvider = ({ children }: StreamChatProviderProps) => {
             const missingParticipants = videoParticipantIds.filter(id => !currentMembers.includes(id));
             
             if (missingParticipants.length > 0) {
-              console.log('🔍 Adding missing participants to chat:', missingParticipants);
-              await channel.addMembers(missingParticipants);
-              console.log('✅ Added missing participants to chat');
+              console.log('🔍 Found missing participants for chat:', missingParticipants);
+              // Note: We'll handle participant addition through the useChatParticipants hook
+              // which will create Stream Chat users first before adding them to the channel
             }
           } catch (error) {
             console.log('ℹ️ Could not ensure chat access:', error);

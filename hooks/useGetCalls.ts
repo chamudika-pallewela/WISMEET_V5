@@ -1,15 +1,25 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useStreamVideoClient, Call, CallRecording } from '@stream-io/video-react-sdk';
-import { useUser } from '@clerk/nextjs';
+import { useEffect, useState } from "react";
+import { useStreamVideoClient, Call } from "@stream-io/video-react-sdk";
+import { useUser } from "@clerk/nextjs";
+
+type Recording = {
+  id: string;
+  callId: string;
+  url: string;
+  duration: number;
+  createdAt: string;
+  // 👆 shape depends on your /api/recordings response
+};
 
 export const useGetCalls = () => {
   const client = useStreamVideoClient();
   const { user, isLoaded: isUserLoaded } = useUser();
+
   const [endedCalls, setEndedCalls] = useState<Call[]>([]);
   const [upcomingCalls, setUpcomingCalls] = useState<Call[]>([]);
-  const [callRecordings, setCallRecordings] = useState<CallRecording[]>([]);
+  const [recordings, setRecordings] = useState<Recording[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -22,101 +32,71 @@ export const useGetCalls = () => {
       try {
         setIsLoading(true);
 
-        // Fetch upcoming calls
+        // ✅ Fetch upcoming calls
         const upcomingCallsResponse = await client.queryCalls({
           filter_conditions: {
             starts_at: { $gt: new Date().toISOString() },
             $or: [
               { created_by_user_id: user.id },
-              { members: { $in: [user.id] } }
-            ]
+              { members: { $in: [user.id] } },
+            ],
           },
-          sort: [{ field: 'starts_at', direction: 1 }],
+          sort: [{ field: "starts_at", direction: 1 }],
           limit: 10,
         });
 
-        // Fetch ended calls
+        // ✅ Fetch ended calls
         const endedCallsResponse = await client.queryCalls({
           filter_conditions: {
             ended_at: { $exists: true },
             $or: [
               { created_by_user_id: user.id },
-              { members: { $in: [user.id] } }
-            ]
+              { members: { $in: [user.id] } },
+            ],
           },
-          sort: [{ field: 'ended_at', direction: -1 }],
+          sort: [{ field: "ended_at", direction: -1 }],
           limit: 10,
         });
 
-        // Fetch calls with recordings
-        const recordingsResponse = await client.queryCalls({
-          filter_conditions: {
-            ended_at: { $exists: true },
-            recording_status: 'ready',
-            $or: [
-              { created_by_user_id: user.id },
-              { members: { $in: [user.id] } }
-            ]
-          },
-          sort: [{ field: 'ended_at', direction: -1 }],
-          limit: 10,
-        });
-
-        // Initialize and load call objects
+        // ✅ Initialize calls
         const initializeCallObjects = async (calls: any[]) => {
-          const callObjects = await Promise.all(
+          return Promise.all(
             calls.map(async (call) => {
-              const callObj = client.call('default', call.id);
+              const callObj = client.call("default", call.id);
               await callObj.get();
-              // We can't directly set the startsAt since it's read-only in the new version
-              // The call object should have this information from the API response
               return callObj;
             })
           );
-          return callObjects;
         };
 
-        // Initialize all call objects
-        const [upcomingCallObjects, endedCallObjects, recordingCallObjects] = await Promise.all([
+        const [upcomingCallObjects, endedCallObjects] = await Promise.all([
           initializeCallObjects(upcomingCallsResponse.calls),
           initializeCallObjects(endedCallsResponse.calls),
-          initializeCallObjects(recordingsResponse.calls)
         ]);
 
-        // Fetch actual recordings for calls with recording_status: 'ready'
-        const recordingData = await Promise.all(
-          recordingCallObjects?.map((meeting) => meeting.queryRecordings()) ?? [],
-        );
-
-        const recordings = recordingData
-          .filter((call) => call.recordings.length > 0)
-          .flatMap((call) => call.recordings);
+        // ✅ Fetch real recordings from your API
+        const res = await fetch(`/api/recordings?createdBy=${user.id}`);
+        const data = await res.json();
 
         setUpcomingCalls(upcomingCallObjects);
         setEndedCalls(endedCallObjects);
-        setCallRecordings(recordings);
-
+        setRecordings(data.recordings || []);
       } catch (err) {
-        console.error('Error fetching calls:', err);
+        console.error("Error fetching calls:", err);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchCalls();
-
-    // Set up periodic refresh
-    const intervalId = setInterval(fetchCalls, 30000); // Refresh every 30 seconds
-
-    return () => {
-      clearInterval(intervalId);
-    };
+    const intervalId = setInterval(fetchCalls, 30000); // auto refresh every 30s
+    return () => clearInterval(intervalId);
   }, [client, user, isUserLoaded]);
 
   return {
     endedCalls,
     upcomingCalls,
-    callRecordings,
+    recordings, // ✅ now only from /api/recordings
     isLoading,
   };
 };

@@ -1,5 +1,5 @@
-'use client';
-import { useState, useEffect } from 'react';
+"use client";
+import { useState, useEffect } from "react";
 import {
   CallControls,
   CallParticipantsList,
@@ -9,36 +9,50 @@ import {
   SpeakerLayout,
   useCallStateHooks,
   useCall,
-} from '@stream-io/video-react-sdk';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Users, LayoutList, X, ChevronLeft, MessageSquare, Grid3X3, User } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+} from "@stream-io/video-react-sdk";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  Users,
+  LayoutList,
+  X,
+  ChevronLeft,
+  MessageSquare,
+  Grid3X3,
+  User,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from './ui/dropdown-menu';
-import Loader from './Loader';
-import EndCallButton from './EndCallButton';
-import MeetingChat from './MeetingChat';
-import ChatHistory from './ChatHistory';
-import { cn } from '@/lib/utils';
-import { useParticipantName } from '@/providers/ParticipantNameProvider';
-import { useChatPersistence } from '@/hooks/useChatPersistence';
-import { useChatParticipants } from '@/hooks/useChatParticipants';
+} from "./ui/dropdown-menu";
+import Loader from "./Loader";
+import EndCallButton from "./EndCallButton";
+import MeetingChat from "./MeetingChat";
+import ChatHistory from "./ChatHistory";
+import { cn } from "@/lib/utils";
+import { useParticipantName } from "@/providers/ParticipantNameProvider";
+import { useChatPersistence } from "@/hooks/useChatPersistence";
+import { useChatParticipants } from "@/hooks/useChatParticipants";
 
-type CallLayoutType = 'auto' | 'grid' | 'speaker-left' | 'speaker-right' | 'spotlight';
+type CallLayoutType =
+  | "auto"
+  | "grid"
+  | "speaker-left"
+  | "speaker-right"
+  | "spotlight";
 
 const MeetingRoom = () => {
   const searchParams = useSearchParams();
-  const isPersonalRoom = !!searchParams.get('personal');
+  const isPersonalRoom = !!searchParams.get("personal");
   const router = useRouter();
-  const [layout, setLayout] = useState<CallLayoutType>('auto');
+  const [layout, setLayout] = useState<CallLayoutType>("auto");
   const [showParticipants, setShowParticipants] = useState(false);
   const [showChatHistory, setShowChatHistory] = useState(false);
   const { useCallCallingState } = useCallStateHooks();
+  const [isRecording, setIsRecording] = useState(false);
   const callingState = useCallCallingState();
   const call = useCall();
 
@@ -54,7 +68,7 @@ const MeetingRoom = () => {
   // Count active participants (excluding local user)
   const participants = call?.state.participants || {};
   const participantIds = Object.keys(participants);
-  const activeParticipants = participantIds.filter(id => {
+  const activeParticipants = participantIds.filter((id) => {
     const participant = (participants as any)[id];
     return participant && !participant.isLocal && participant.isSpeaking;
   });
@@ -63,14 +77,73 @@ const MeetingRoom = () => {
 
   // Auto-determine best layout based on participant count
   const getAutoLayout = (): CallLayoutType => {
-    if (totalParticipants <= 2) return 'speaker-left';
-    if (totalParticipants <= 4) return 'grid';
-    if (totalParticipants <= 6) return 'spotlight';
-    return 'grid'; // Default to grid for larger groups
+    if (totalParticipants <= 2) return "speaker-left";
+    if (totalParticipants <= 4) return "grid";
+    if (totalParticipants <= 6) return "spotlight";
+    return "grid"; // Default to grid for larger groups
+  };
+  const handleRecordingToggle = async () => {
+    if (!call) return;
+
+    try {
+      if (!isRecording) {
+        await call.startRecording();
+        setIsRecording(true);
+        console.log("Recording started...");
+      } else {
+        await call.stopRecording();
+        setIsRecording(false);
+        console.log("Recording stopped. Processing...");
+
+        // Poll recordings until available
+        let recordings: any[] = [];
+        let attempts = 0;
+
+        while (attempts < 5) {
+          const response = await call.queryRecordings();
+          recordings = response.recordings || [];
+          if (recordings.length > 0) break;
+
+          attempts++;
+          console.log("⏳ Waiting for recording to process...");
+          await new Promise((res) => setTimeout(res, 5000));
+        }
+
+        if (!recordings || recordings.length === 0) {
+          console.warn("⚠️ No recordings available yet.");
+          return;
+        }
+
+        const latest = recordings[recordings.length - 1];
+
+        // 🔹 Collect all participant IDs
+        const participantIds = Array.from(call.state.participants.values()).map(
+          (p) => p.userId
+        );
+
+        // Save metadata + URL
+        await fetch("/api/recordings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            meetingId: call.id,
+            callId: call.id,
+            recordingUrl: latest.url,
+            startedAt: latest.start_time,
+            endedAt: latest.end_time,
+            createdBy: participantIds, // ✅ array of userIds instead of single name
+          }),
+        });
+
+        console.log("✅ Recording saved:", latest.url);
+      }
+    } catch (err) {
+      console.error("❌ Recording error:", err);
+    }
   };
 
   // Get the effective layout (auto or manual)
-  const effectiveLayout = layout === 'auto' ? getAutoLayout() : layout;
+  const effectiveLayout = layout === "auto" ? getAutoLayout() : layout;
 
   // Initialize devices based on setup preferences
   useEffect(() => {
@@ -88,7 +161,7 @@ const MeetingRoom = () => {
             await call.microphone.disable();
           }
         } catch (err) {
-          console.error('Error applying initial device states:', err);
+          console.error("Error applying initial device states:", err);
           // Retry after a short delay
           setTimeout(async () => {
             try {
@@ -99,7 +172,7 @@ const MeetingRoom = () => {
                 await call.microphone.disable();
               }
             } catch (retryErr) {
-              console.error('Retry failed for device states:', retryErr);
+              console.error("Retry failed for device states:", retryErr);
             }
           }, 500);
         }
@@ -126,40 +199,33 @@ const MeetingRoom = () => {
   }
 
   const CallLayout = () => {
-    const participantsBarPosition: 'left' | 'right' = effectiveLayout === 'speaker-right' ? 'left' : 'right';
+    const participantsBarPosition: "left" | "right" =
+      effectiveLayout === "speaker-right" ? "left" : "right";
 
     switch (effectiveLayout) {
-      case 'grid':
+      case "grid":
         return (
           <div className="h-full w-full">
-            <PaginatedGridLayout 
-              groupSize={hasMultipleParticipants ? 9 : 4}
-            />
+            <PaginatedGridLayout groupSize={hasMultipleParticipants ? 9 : 4} />
           </div>
         );
-      case 'spotlight':
+      case "spotlight":
         return (
           <div className="h-full w-full">
-            <PaginatedGridLayout 
-              groupSize={hasMultipleParticipants ? 6 : 4}
-            />
+            <PaginatedGridLayout groupSize={hasMultipleParticipants ? 6 : 4} />
           </div>
         );
-      case 'speaker-right':
-      case 'speaker-left':
+      case "speaker-right":
+      case "speaker-left":
         return (
           <div className="h-full w-full">
-            <SpeakerLayout
-              participantsBarPosition={participantsBarPosition}
-            />
+            <SpeakerLayout participantsBarPosition={participantsBarPosition} />
           </div>
         );
       default:
         return (
           <div className="h-full w-full">
-            <PaginatedGridLayout 
-              groupSize={hasMultipleParticipants ? 9 : 4}
-            />
+            <PaginatedGridLayout groupSize={hasMultipleParticipants ? 9 : 4} />
           </div>
         );
     }
@@ -175,7 +241,7 @@ const MeetingRoom = () => {
 
       {/* Participant Count Indicator */}
       {hasMultipleParticipants && (
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10"
@@ -183,12 +249,15 @@ const MeetingRoom = () => {
           <div className="flex items-center gap-2 bg-gray-800/80 backdrop-blur-sm px-4 py-2 rounded-full border border-gray-700">
             <Users className="h-4 w-4 text-blue-400" />
             <span className="text-sm text-white font-medium">
-              {totalParticipants} {totalParticipants === 1 ? 'Participant' : 'Participants'}
+              {totalParticipants}{" "}
+              {totalParticipants === 1 ? "Participant" : "Participants"}
             </span>
             {activeParticipants.length > 0 && (
               <div className="flex items-center gap-1">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                <span className="text-xs text-green-400">{activeParticipants.length} speaking</span>
+                <span className="text-xs text-green-400">
+                  {activeParticipants.length} speaking
+                </span>
               </div>
             )}
           </div>
@@ -198,7 +267,7 @@ const MeetingRoom = () => {
       {/* Main Content */}
       <div className="relative flex flex-1 overflow-hidden">
         {/* Video Layout */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5 }}
@@ -213,15 +282,17 @@ const MeetingRoom = () => {
         <AnimatePresence>
           {showParticipants && (
             <motion.div
-              initial={{ x: '100%' }}
+              initial={{ x: "100%" }}
               animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 20 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 20 }}
               className="fixed right-0 top-0 bottom-0 z-50 w-full border-l border-gray-800 bg-gray-900/95 backdrop-blur-xl md:relative md:w-80"
             >
               <div className="flex h-full flex-col">
                 <div className="flex items-center justify-between border-b border-gray-800 p-4">
-                  <h2 className="text-lg font-semibold text-white">Participants</h2>
+                  <h2 className="text-lg font-semibold text-white">
+                    Participants
+                  </h2>
                   <button
                     onClick={() => setShowParticipants(false)}
                     className="rounded-lg p-2 text-gray-400 hover:bg-gray-800 hover:text-white"
@@ -230,16 +301,16 @@ const MeetingRoom = () => {
                   </button>
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                  <CallParticipantsList 
+                  <CallParticipantsList
                     onClose={() => setShowParticipants(false)}
                   />
-                  
+
                   {/* Manual Chat Access Button */}
                   <div className="p-4 border-t border-gray-800">
                     <button
                       onClick={() => {
                         // This will trigger the chat participants hook
-                        console.log('🔄 Manually refreshing chat access...');
+                        console.log("🔄 Manually refreshing chat access...");
                       }}
                       className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm mb-2"
                     >
@@ -277,15 +348,13 @@ const MeetingRoom = () => {
       </div>
 
       {/* Controls */}
-      <motion.div 
+      <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.5 }}
         className="relative flex flex-wrap items-center justify-center gap-2 bg-gray-900/90 p-4 backdrop-blur-sm md:gap-4"
       >
-        <CallControls 
-          onLeave={() => router.push('/')}
-        />
+        <CallControls onLeave={() => router.push("/")} />
 
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg bg-gray-800 px-3 py-2 text-white transition-colors hover:bg-gray-700 md:px-4">
@@ -294,11 +363,11 @@ const MeetingRoom = () => {
           </DropdownMenuTrigger>
           <DropdownMenuContent className="border-gray-700 bg-gray-800">
             {[
-              { key: 'auto', label: 'Auto', icon: User },
-              { key: 'grid', label: 'Grid', icon: Grid3X3 },
-              { key: 'speaker-left', label: 'Speaker Left', icon: User },
-              { key: 'speaker-right', label: 'Speaker Right', icon: User },
-              { key: 'spotlight', label: 'Spotlight', icon: Grid3X3 },
+              { key: "auto", label: "Auto", icon: User },
+              { key: "grid", label: "Grid", icon: Grid3X3 },
+              { key: "speaker-left", label: "Speaker Left", icon: User },
+              { key: "speaker-right", label: "Speaker Right", icon: User },
+              { key: "spotlight", label: "Spotlight", icon: Grid3X3 },
             ].map((item) => {
               const Icon = item.icon;
               return (
@@ -313,7 +382,9 @@ const MeetingRoom = () => {
                   <Icon className="h-4 w-4" />
                   {item.label}
                   {layout === item.key && (
-                    <span className="ml-auto text-xs bg-blue-500 px-2 py-1 rounded">Active</span>
+                    <span className="ml-auto text-xs bg-blue-500 px-2 py-1 rounded">
+                      Active
+                    </span>
                   )}
                 </DropdownMenuItem>
               );
@@ -322,12 +393,23 @@ const MeetingRoom = () => {
         </DropdownMenu>
 
         <CallStatsButton />
+        <button
+          onClick={handleRecordingToggle}
+          className={cn(
+            "flex items-center gap-2 rounded-lg px-3 py-2 transition-colors md:px-4",
+            isRecording
+              ? "bg-red-600 text-white hover:bg-red-700"
+              : "bg-gray-800 text-white hover:bg-gray-700"
+          )}
+        >
+          {isRecording ? "⏹ Stop Recording" : "⏺ Start Recording"}
+        </button>
 
         <button
           onClick={() => setShowParticipants((prev) => !prev)}
           className={cn(
             "flex items-center gap-2 rounded-lg px-3 py-2 transition-colors md:px-4",
-            showParticipants 
+            showParticipants
               ? "bg-blue-600 text-white hover:bg-blue-700"
               : "bg-gray-800 text-white hover:bg-gray-700"
           )}
@@ -357,7 +439,7 @@ const MeetingRoom = () => {
 
       {/* Chat History Modal */}
       <ChatHistory
-        meetingId={call?.id || ''}
+        meetingId={call?.id || ""}
         isOpen={showChatHistory}
         onClose={() => setShowChatHistory(false)}
       />

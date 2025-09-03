@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useCallback } from 'react';
-import { useStreamChat } from '@/providers/StreamChatProvider';
-import { useCall } from '@stream-io/video-react-sdk';
+import { useEffect, useCallback } from "react";
+import { useStreamChat } from "@/providers/StreamChatProvider";
+import { useCall } from "@stream-io/video-react-sdk";
 
 export const useChatParticipants = () => {
   const { channel, isConnected } = useStreamChat();
@@ -11,34 +11,73 @@ export const useChatParticipants = () => {
   // Debug function to log participant structure
   const debugParticipants = useCallback(() => {
     if (!call) return;
-    
+
     const participants = call.state.participants;
-    console.log('🔍 Debug: Video participants structure:', participants);
-    
-    Object.keys(participants).forEach(id => {
-      const participant = participants[id];
-      console.log(`  Participant ${id}:`, {
-        userId: participant.userId,
-        name: participant.name,
-        isLocal: participant.isLocal,
-        type: typeof participant.userId
+    console.log("🔍 Debug: Video participants structure:", participants);
+
+    // Handle both Map and object-like structures
+    if (participants instanceof Map) {
+      participants.forEach((participant, id) => {
+        console.log(`  Participant ${id}:`, {
+          userId: participant.userId,
+          name: participant.name,
+          type: typeof participant.userId,
+        });
       });
-    });
+    } else {
+      Object.entries(participants).forEach(([id, participant]) => {
+        console.log(`  Participant ${id}:`, {
+          userId: participant.userId,
+          name: participant.name,
+          type: typeof participant.userId,
+        });
+      });
+    }
   }, [call]);
 
-  // Function to add a participant to chat
-  const addParticipantToChat = useCallback(async (participantId: string) => {
-    if (!channel || !isConnected) return;
-
+  // Function to create Stream Chat users for video participants
+  const createStreamChatUsers = useCallback(async (participants: any[]) => {
     try {
-      await channel.addMembers([participantId]);
-      console.log(`✅ Added participant ${participantId} to chat`);
-      return true;
+      const response = await fetch("/api/stream/create-users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ participants }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to create users: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ Stream Chat users created:", result);
+      return result.createdUsers || [];
     } catch (error) {
-      console.log(`ℹ️ Could not add participant ${participantId} to chat:`, error);
-      return false;
+      console.error("❌ Failed to create Stream Chat users:", error);
+      return [];
     }
-  }, [channel, isConnected]);
+  }, []);
+
+  // Function to add a participant to chat
+  const addParticipantToChat = useCallback(
+    async (participantId: string) => {
+      if (!channel || !isConnected) return;
+
+      try {
+        await channel.addMembers([participantId]);
+        console.log(`✅ Added participant ${participantId} to chat`);
+        return true;
+      } catch (error) {
+        console.log(
+          `ℹ️ Could not add participant ${participantId} to chat:`,
+          error
+        );
+        return false;
+      }
+    },
+    [channel, isConnected]
+  );
 
   // Function to add all current participants to chat
   const addAllParticipantsToChat = useCallback(async () => {
@@ -47,27 +86,57 @@ export const useChatParticipants = () => {
     try {
       const participants = call.state.participants;
       const participantIds = Object.keys(participants);
-      
+
       // Filter out numeric IDs (Stream Video internal IDs) and get actual user IDs
-      const validUserIds = participantIds.filter(id => {
-        const participant = participants[id];
-        // Check if participant has a valid user ID (not numeric)
-        return participant && participant.userId && !/^\d+$/.test(participant.userId);
-      }).map(id => participants[id].userId);
-      
-      if (validUserIds.length > 0) {
-        console.log('👥 Adding valid participants to chat:', validUserIds);
-        await channel.addMembers(validUserIds);
-        console.log('✅ Added valid participants to chat');
-        return true;
+      const validParticipants: any[] = [];
+
+      if (participants instanceof Map) {
+        participants.forEach((participant) => {
+          if (participant.userId && !/^\d+$/.test(participant.userId)) {
+            validParticipants.push({
+              userId: participant.userId,
+              name: participant.name,
+              image: participant.image,
+            });
+          }
+        });
       } else {
-        console.log('ℹ️ No valid user IDs found in participants');
+        Object.values(participants).forEach((participant: any) => {
+          if (participant.userId && !/^\d+$/.test(participant.userId)) {
+            validParticipants.push({
+              userId: participant.userId,
+              name: participant.name,
+              image: participant.image,
+            });
+          }
+        });
+      }
+
+      if (validParticipants.length > 0) {
+        console.log(
+          "👥 Processing valid participants for chat:",
+          validParticipants
+        );
+
+        // First create Stream Chat users
+        const createdUsers = await createStreamChatUsers(validParticipants);
+
+        if (createdUsers.length > 0) {
+          // Then add them to the channel
+          const userIds = createdUsers.map((user: any) => user.id);
+          console.log("👥 Adding created users to chat:", userIds);
+          await channel.addMembers(userIds);
+          console.log("✅ Added created users to chat");
+          return true;
+        }
+      } else {
+        console.log("ℹ️ No valid user IDs found in participants");
       }
     } catch (error) {
-      console.log('ℹ️ Could not add all participants to chat:', error);
+      console.log("ℹ️ Could not add all participants to chat:", error);
       return false;
     }
-  }, [channel, isConnected, call]);
+  }, [channel, isConnected, call, createStreamChatUsers]);
 
   // Function to ensure all participants have chat access
   const ensureChatAccess = useCallback(async () => {
@@ -77,33 +146,66 @@ export const useChatParticipants = () => {
       // Get current channel members
       const memberResponse = await channel.queryMembers({});
       const currentMembers = memberResponse.members.map((m: any) => m.user_id);
-      
+
       // Get video call participants and extract valid user IDs
       const videoParticipants = call.state.participants;
       const videoParticipantIds = Object.keys(videoParticipants);
-      
+
       // Filter out numeric IDs and get actual user IDs
-      const validUserIds = videoParticipantIds.filter(id => {
-        const participant = videoParticipants[id];
-        return participant && participant.userId && !/^\d+$/.test(participant.userId);
-      }).map(id => videoParticipants[id].userId);
-      
-      // Find participants who aren't in chat yet
-      const missingParticipants = validUserIds.filter(userId => !currentMembers.includes(userId));
-      
-      if (missingParticipants.length > 0) {
-        console.log('🔍 Adding missing participants to chat:', missingParticipants);
-        await channel.addMembers(missingParticipants);
-        console.log('✅ Added missing participants to chat');
-        return true;
+      const validParticipants: any[] = [];
+
+      if (videoParticipants instanceof Map) {
+        videoParticipants.forEach((participant) => {
+          if (participant.userId && !/^\d+$/.test(participant.userId)) {
+            validParticipants.push({
+              userId: participant.userId,
+              name: participant.name,
+              image: participant.image,
+            });
+          }
+        });
+      } else {
+        Object.values(videoParticipants).forEach((participant: any) => {
+          if (participant.userId && !/^\d+$/.test(participant.userId)) {
+            validParticipants.push({
+              userId: participant.userId,
+              name: participant.name,
+              image: participant.image,
+            });
+          }
+        });
       }
-      
+
+      // Find participants who aren't in chat yet
+      const missingParticipants = validParticipants.filter(
+        (participant) => !currentMembers.includes(participant.userId)
+      );
+
+      if (missingParticipants.length > 0) {
+        console.log(
+          "🔍 Found missing participants for chat:",
+          missingParticipants
+        );
+
+        // Create Stream Chat users first
+        const createdUsers = await createStreamChatUsers(missingParticipants);
+
+        if (createdUsers.length > 0) {
+          // Then add them to the channel
+          const userIds = createdUsers.map((user: any) => user.id);
+          console.log("🔍 Adding missing participants to chat:", userIds);
+          await channel.addMembers(userIds);
+          console.log("✅ Added missing participants to chat");
+          return true;
+        }
+      }
+
       return false;
     } catch (error) {
-      console.log('ℹ️ Could not ensure chat access:', error);
+      console.log("ℹ️ Could not ensure chat access:", error);
       return false;
     }
-  }, [channel, isConnected, call]);
+  }, [channel, isConnected, call, createStreamChatUsers]);
 
   // Automatically ensure chat access when participants change
   useEffect(() => {
@@ -124,8 +226,8 @@ export const useChatParticipants = () => {
     };
 
     // Listen for participant changes
-    call.on('participant.joined', handleParticipantJoined);
-    call.on('participant.left', handleParticipantLeft);
+    call.on("participant.joined", handleParticipantJoined);
+    call.on("participant.left", handleParticipantLeft);
 
     // Initial check
     setTimeout(() => {
@@ -134,15 +236,16 @@ export const useChatParticipants = () => {
     }, 2000);
 
     return () => {
-      call.off('participant.joined', handleParticipantJoined);
-      call.off('participant.left', handleParticipantLeft);
+      call.off("participant.joined", handleParticipantJoined);
+      call.off("participant.left", handleParticipantLeft);
     };
-  }, [isConnected, call, ensureChatAccess]);
+  }, [isConnected, call, ensureChatAccess, debugParticipants]);
 
   return {
     addParticipantToChat,
     addAllParticipantsToChat,
     ensureChatAccess,
     debugParticipants,
+    createStreamChatUsers,
   };
 };

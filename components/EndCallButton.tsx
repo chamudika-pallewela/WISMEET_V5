@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useCall, useCallStateHooks } from '@stream-io/video-react-sdk';
+import { useCall, useCallStateHooks } from "@stream-io/video-react-sdk";
 
-import { Button } from './ui/button';
-import { useRouter } from 'next/navigation';
-import { useStreamChat } from '@/providers/StreamChatProvider';
+import { Button } from "./ui/button";
+import { useRouter } from "next/navigation";
+import { useStreamChat } from "@/providers/StreamChatProvider";
 
 const EndCallButton = () => {
   const call = useCall();
@@ -13,7 +13,7 @@ const EndCallButton = () => {
 
   if (!call)
     throw new Error(
-      'useStreamCall must be used within a StreamCall component.',
+      "useStreamCall must be used within a StreamCall component."
     );
 
   // https://getstream.io/video/docs/react/guides/call-and-participant-state/#participant-state-3
@@ -31,21 +31,23 @@ const EndCallButton = () => {
     try {
       // Save chat messages before ending call
       if (channel) {
-        const response = await channel.getMessages();
+        const response = await channel.query({ messages: { limit: 100 } });
         const messages = response.messages.map((msg: any) => ({
           senderId: msg.user.id,
-          senderName: msg.user.name || 'Anonymous',
+          senderName: msg.user.name || "Anonymous",
           message: msg.text,
           timestamp: new Date(msg.created_at),
-          isPrivate: msg.text.startsWith('@'),
-          recipientId: msg.text.startsWith('@') ? msg.text.split(' ')[0].substring(1) : null,
+          isPrivate: msg.text.startsWith("@"),
+          recipientId: msg.text.startsWith("@")
+            ? msg.text.split(" ")[0].substring(1)
+            : null,
         }));
 
         // Save to database
-        await fetch('/api/chat/save', {
-          method: 'POST',
+        await fetch("/api/chat/save", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             meetingId: call.id,
@@ -55,12 +57,12 @@ const EndCallButton = () => {
       }
 
       await call.endCall();
-      router.push('/');
+      router.push("/");
     } catch (error) {
-      console.error('Error ending call:', error);
+      console.error("Error ending call:", error);
       // Still end the call even if chat save fails
       await call.endCall();
-      router.push('/');
+      router.push("/");
     }
   };
 

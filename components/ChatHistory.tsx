@@ -1,10 +1,11 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { MessageSquare, Calendar, User, Clock } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect } from "react";
+import { MessageSquare, Calendar, User, Clock } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface ChatMessage {
+  isPrivate: any;
   _id: string;
   senderId: string;
   senderName: string;
@@ -37,11 +38,11 @@ const ChatHistory = ({ meetingId, isOpen, onClose }: ChatHistoryProps) => {
         const data = await response.json();
         setMessages(data.messages || []);
       } else {
-        console.error('Failed to load chat history');
+        console.error("Failed to load chat history");
         setMessages([]);
       }
     } catch (error) {
-      console.error('Error loading chat history:', error);
+      console.error("Error loading chat history:", error);
       setMessages([]);
     } finally {
       setIsLoading(false);
@@ -63,7 +64,7 @@ const ChatHistory = ({ meetingId, isOpen, onClose }: ChatHistoryProps) => {
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          transition={{ type: "spring", damping: 25, stiffness: 200 }}
           className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
@@ -72,7 +73,9 @@ const ChatHistory = ({ meetingId, isOpen, onClose }: ChatHistoryProps) => {
             <div className="flex items-center gap-3">
               <MessageSquare className="h-6 w-6 text-blue-600" />
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Chat History</h2>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Chat History
+                </h2>
                 <p className="text-sm text-gray-600">Meeting: {meetingId}</p>
               </div>
             </div>
@@ -99,8 +102,12 @@ const ChatHistory = ({ meetingId, isOpen, onClose }: ChatHistoryProps) => {
             ) : messages.length === 0 ? (
               <div className="text-center py-12">
                 <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No chat history</h3>
-                <p className="text-gray-600">No messages were saved for this meeting.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  No chat history
+                </h3>
+                <p className="text-gray-600">
+                  No messages were saved for this meeting.
+                </p>
               </div>
             ) : (
               <div className="space-y-4 max-h-96 overflow-y-auto">
