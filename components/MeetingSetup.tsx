@@ -63,6 +63,26 @@ const MeetingSetup = ({
     initializeDevices();
   }, []); // Run only once on mount
 
+  // Debug: log microphone MediaStream and track - Migara
+  useEffect(() => {
+    if (!call) return;
+
+    const logStream = (stream?: MediaStream) => {
+      const track = stream?.getAudioTracks()[0];
+      console.log('[Setup] Mic stream:', stream);
+      console.log('[Setup] Mic track:', track);
+      console.log('[Setup] Track readyState:', track?.readyState, 'enabled:', track?.enabled);
+    };
+
+    const sub = call.microphone.state.mediaStream$.subscribe(logStream);
+
+    call.microphone.enable().then(() => {
+      logStream(call.microphone.state.mediaStream);
+    });
+
+    return () => sub.unsubscribe();
+  }, [call]);
+
   // Handle camera toggle
   const toggleCamera = async () => {
     try {

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   CallControls,
   CallParticipantsList,
@@ -24,41 +24,106 @@ import Loader from './Loader';
 import EndCallButton from './EndCallButton';
 import { cn } from '@/lib/utils';
 
+import { createTranscriber } from '@/helpers/createTranscriber';
+import { createMicrophone } from '@/helpers/createMicrophone';
+
+// Infer correct type from your helper
+type Transcriber = Awaited<ReturnType<typeof createTranscriber>>;
+
 type CallLayoutType = 'grid' | 'speaker-left' | 'speaker-right';
 
-const MeetingRoom = () => {
+const MeetingRoom = () : JSX.Element => {
   const searchParams = useSearchParams();
   const isPersonalRoom = !!searchParams.get('personal');
   const router = useRouter();
   const [layout, setLayout] = useState<CallLayoutType>('speaker-left');
   const [showParticipants, setShowParticipants] = useState(false);
-  const { useCallCallingState } = useCallStateHooks();
+  const { useCallCallingState, useMicrophoneState } = useCallStateHooks();
   const callingState = useCallCallingState();
   const call = useCall();
 
-  // Initialize devices based on setup preferences
-  useEffect(() => {
-    if (call) {
-      const initialCameraEnabled = call.state.custom?.initialCameraEnabled;
-      const initialMicEnabled = call.state.custom?.initialMicEnabled;
+  const { mediaStream } = useMicrophoneState();
 
-      if (initialCameraEnabled === false) {
-        call.camera.disable();
-      }
-      if (initialMicEnabled === false) {
-        call.microphone.disable();
-      }
+  const [transcribedText, setTranscribedText] = useState<string>('');
+  const [llmActive, setLlmActive] = useState<boolean>(false);
+  const [llmResponse, setLlmResponse] = useState<string>('');
+  const [robotActive, setRobotActive] = useState<boolean>(false);
+  const [transcriber, setTranscriber] = useState<Transcriber | undefined>(undefined);
+  const [mic, setMic] = useState<ReturnType<typeof createMicrophone> | undefined>(undefined);
+
+  const processPrompt = useCallback(async (prompt: string) => {
+    const response = await fetch('/api/lemurRequest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+
+    const { response: lemurResponse } = await response.json();
+    setLlmResponse(lemurResponse);
+
+    setTimeout(() => {
+      setLlmResponse('');
+      setLlmActive(false);
+      setTranscribedText('');
+    }, 7000);
+  }, []);
+
+  const initializeAssemblyAI = useCallback(async () => {
+    if (!mediaStream) {
+      console.error('No media stream found!');
+      return;
     }
-  }, [call]);
+
+    try {
+      const tr = await createTranscriber(setTranscribedText, setLlmActive, processPrompt);
+      if (!tr) {
+        console.error('Failed to create transcriber');
+        return;
+      }
+
+      console.log('[Transcriber] Connecting...');
+      await tr.connect();
+
+      const microphone = createMicrophone(mediaStream);
+      await microphone.startRecording((audioData: any) => {
+        tr.sendAudio(audioData);
+      });
+
+      setMic(microphone);
+      setTranscriber(tr);
+    } catch (err) {
+      console.error('Error initializing AssemblyAI:', err);
+    }
+  }, [mediaStream, processPrompt]);
+
+  const switchRobot = useCallback(async (isActive: boolean) => {
+    if (isActive) {
+      console.log('[Robot] Stopping...');
+      mic?.stopRecording();
+      await transcriber?.close();
+      setMic(undefined);
+      setTranscriber(undefined);
+      setRobotActive(false);
+      setTranscribedText('');
+    } else {
+      console.log('[Robot] Starting...');
+      await initializeAssemblyAI();
+      setRobotActive(true);
+    }
+  }, [initializeAssemblyAI, mic, transcriber]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      try { mic?.stopRecording(); } catch {}
+      (async () => { try { await transcriber?.close(); } catch {} })();
+    };
+  }, [mic, transcriber]);
 
   if (callingState !== CallingState.JOINED) {
     return (
       <div className="flex h-screen items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3 }}
-        >
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}>
           <Loader />
         </motion.div>
       </div>
@@ -66,24 +131,15 @@ const MeetingRoom = () => {
   }
 
   const CallLayout = () => {
-    const participantsBarPosition: 'left' | 'right' = layout === 'speaker-right' ? 'left' : 'right';
+    const participantsBarPosition: 'left' | 'right' =
+      layout === 'speaker-right' ? 'left' : 'right';
 
     switch (layout) {
       case 'grid':
-        return (
-          <div className="h-full w-full">
-            <PaginatedGridLayout />
-          </div>
-        );
+        return <PaginatedGridLayout />;
       case 'speaker-right':
       case 'speaker-left':
-        return (
-          <div className="h-full w-full">
-            <SpeakerLayout
-              participantsBarPosition={participantsBarPosition}
-            />
-          </div>
-        );
+        return <SpeakerLayout participantsBarPosition={participantsBarPosition} />;
       default:
         return null;
     }
@@ -91,114 +147,50 @@ const MeetingRoom = () => {
 
   return (
     <div className="relative flex h-screen flex-col bg-gradient-to-br from-gray-900 to-gray-800">
-      {/* Background Effects */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-1/2 right-0 h-[500px] w-[500px] rounded-full bg-blue-500/10 blur-[120px]" />
-        <div className="absolute -bottom-1/2 left-0 h-[500px] w-[500px] rounded-full bg-purple-500/10 blur-[120px]" />
+      {/* Toggle button */}
+      <button
+        className={`ml-8 border-2 border-black dark:bg-white rounded-full px-4 py-2 transition-colors ease-in-out duration-200 ${
+          robotActive ? 'bg-black text-white animate-pulse' : ''
+        }`}
+        onClick={() => switchRobot(robotActive)}
+      >
+        {robotActive ? 'Robot ON' : 'Robot OFF'}
+      </button>
+
+      <div className='ml-8 border-2 border-black dark:bg-white rounded-full px-4 py-2 transition-colors ease-in-out duration-200'>
+        {transcribedText}
+        {llmResponse}
       </div>
+
+      {/* LLM response */}
+      {llmResponse && (
+        <div className="absolute mx-8 top-8 right-8 bg-white text-black p-4 rounded-lg shadow-md">
+          {llmResponse}
+        </div>
+      )}
+
+      {/* Transcript */}
+      {transcribedText && (
+        <div className="flex items-center justify-center w-full bottom-2">
+          <h3 className="text-white text-center bg-black rounded-xl px-6 py-1">
+            {transcribedText}
+          </h3>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="relative flex flex-1 overflow-hidden">
-        {/* Video Layout */}
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="relative flex flex-1 items-center justify-center p-4"
-        >
+        <motion.div className="relative flex flex-1 items-center justify-center p-4">
           <div className="relative h-full w-full max-w-[1440px]">
             <CallLayout />
           </div>
         </motion.div>
-
-        {/* Participants List */}
-        <AnimatePresence>
-          {showParticipants && (
-            <motion.div
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 20 }}
-              className="fixed right-0 top-0 bottom-0 z-50 w-full border-l border-gray-800 bg-gray-900/95 backdrop-blur-xl md:relative md:w-80"
-            >
-              <div className="flex h-full flex-col">
-                <div className="flex items-center justify-between border-b border-gray-800 p-4">
-                  <h2 className="text-lg font-semibold text-white">Participants</h2>
-                  <button
-                    onClick={() => setShowParticipants(false)}
-                    className="rounded-lg p-2 text-gray-400 hover:bg-gray-800 hover:text-white"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-                <CallParticipantsList 
-                  onClose={() => setShowParticipants(false)}
-                />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Mobile Participants Toggle */}
-        <AnimatePresence>
-          {!showParticipants && (
-            <motion.button
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              onClick={() => setShowParticipants(true)}
-              className="fixed right-4 top-1/2 z-40 -translate-y-1/2 rounded-l-xl bg-gray-800/90 p-2 text-white backdrop-blur-sm hover:bg-gray-700 md:hidden"
-            >
-              <ChevronLeft className="h-6 w-6" />
-            </motion.button>
-          )}
-        </AnimatePresence>
       </div>
 
       {/* Controls */}
-      <motion.div 
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5 }}
-        className="relative flex flex-wrap items-center justify-center gap-2 bg-gray-900/90 p-4 backdrop-blur-sm md:gap-4"
-      >
-        <CallControls 
-          onLeave={() => router.push('/')}
-        />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg bg-gray-800 px-3 py-2 text-white transition-colors hover:bg-gray-700 md:px-4">
-            <LayoutList className="h-5 w-5" />
-            <span className="hidden text-sm md:inline">Layout</span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="border-gray-700 bg-gray-800">
-            {['Grid', 'Speaker-Left', 'Speaker-Right'].map((item) => (
-              <DropdownMenuItem
-                key={item}
-                onClick={() => setLayout(item.toLowerCase() as CallLayoutType)}
-                className="text-white hover:bg-gray-700"
-              >
-                {item}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
+      <motion.div className="relative flex flex-wrap items-center justify-center gap-2 bg-gray-900/90 p-4 backdrop-blur-sm md:gap-4">
+        <CallControls onLeave={() => router.push('/')} />
         <CallStatsButton />
-
-        <button
-          onClick={() => setShowParticipants((prev) => !prev)}
-          className={cn(
-            "flex items-center gap-2 rounded-lg px-3 py-2 transition-colors md:px-4",
-            showParticipants 
-              ? "bg-blue-600 text-white hover:bg-blue-700"
-              : "bg-gray-800 text-white hover:bg-gray-700"
-          )}
-        >
-          <Users className="h-5 w-5" />
-          <span className="hidden text-sm md:inline">Participants</span>
-        </button>
-
         {!isPersonalRoom && <EndCallButton />}
       </motion.div>
     </div>
