@@ -60,20 +60,20 @@ export async function createTranscriber(
     }
 
     // Detect if we're asking something for the LLM
-    setLlamaActive(turn.transcript.toLowerCase().indexOf('llama') > 0);
+    setLlamaActive(turn.transcript.toLowerCase().indexOf('mj') > 0);
 
     if (turn.end_of_turn) {
       // Final transcript (end of turn)
       console.log('[Turn] Final:', turn.transcript);
       setTranscribedText(turn.transcript);
       
-      if (turn.transcript.toLowerCase().indexOf('llama') > 0) {
+      if (turn.transcript.toLowerCase().indexOf('mj') > 0) {
         console.log('Setting prompt to: ', turn.transcript);
         processPrompt(turn.transcript);
       }
     } else {
       // Ongoing turn  
-      console.log('[Turn] Partial:', turn.transcript);
+      // console.log('[Turn] Partial:', turn.transcript);
       setTranscribedText(turn.transcript);
     }
   });

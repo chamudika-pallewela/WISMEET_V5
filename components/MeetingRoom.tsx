@@ -52,13 +52,16 @@ const MeetingRoom = () : JSX.Element => {
   const [mic, setMic] = useState<ReturnType<typeof createMicrophone> | undefined>(undefined);
 
   const processPrompt = useCallback(async (prompt: string) => {
+    console.log('Processing prompt');
     const response = await fetch('/api/lemurRequest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt }),
     });
+    console.log('Response found');
 
     const { response: lemurResponse } = await response.json();
+    console.log('Lemur response found');
     setLlmResponse(lemurResponse);
 
     setTimeout(() => {
@@ -67,6 +70,7 @@ const MeetingRoom = () : JSX.Element => {
       setTranscribedText('');
     }, 7000);
   }, []);
+  console.log('Process prompt found');
 
   const initializeAssemblyAI = useCallback(async () => {
     if (!mediaStream) {
@@ -154,7 +158,7 @@ const MeetingRoom = () : JSX.Element => {
         }`}
         onClick={() => switchRobot(robotActive)}
       >
-        {robotActive ? 'Robot ON' : 'Robot OFF'}
+        {robotActive ? 'Transcription ON' : 'Transcription OFF'}
       </button>
 
       <div className='ml-8 border-2 border-black dark:bg-white rounded-full px-4 py-2 transition-colors ease-in-out duration-200'>

@@ -1,15 +1,21 @@
 import { AssemblyAI } from 'assemblyai';
+import { stdout } from 'process';
 
 export async function POST(request: Request) {
   const apiKey = process.env.ASSEMBLY_API_KEY;
   if (!apiKey) {
+    console.log('No API key found');
     return Response.error();
   }
+  console.log('API key found');
+  stdout.write('API key found');
 
   const client = new AssemblyAI({ apiKey: apiKey });
   const body = await request.json();
+  console.log('Body found');
 
   const prompt = body?.prompt;
+  console.log('Prompt found');
 
   if (!prompt) {
     return Response.error();
@@ -31,6 +37,7 @@ export async function POST(request: Request) {
     prompt: prompt,
     response: lemurResponse.response,
   };
+  console.log('Response found');
 
   console.log(lemurResponse.response);
 
