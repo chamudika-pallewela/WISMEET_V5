@@ -60,15 +60,30 @@ const MeetingRoom = () : JSX.Element => {
     });
     console.log('Response found');
 
-    const { response: lemurResponse } = await response.json();
-    console.log('Lemur response found');
-    setLlmResponse(lemurResponse);
+    if (!response.ok) {
+      console.error('Response not ok:', response.status);
+      return;
+    }
 
-    setTimeout(() => {
-      setLlmResponse('');
-      setLlmActive(false);
-      setTranscribedText('');
-    }, 7000);
+    const responseText = await response.text();
+    if (!responseText) {
+      console.error('Empty response');
+      return;
+    }
+
+    try {
+      const { response: lemurResponse } = JSON.parse(responseText);
+      console.log('Lemur response found');
+      setLlmResponse(lemurResponse);
+
+      setTimeout(() => {
+        setLlmResponse('');
+        setLlmActive(false);
+        setTranscribedText('');
+      }, 7000);
+    } catch (error) {
+      console.error('JSON parse error:', error);
+    }
   }, []);
   console.log('Process prompt found');
 

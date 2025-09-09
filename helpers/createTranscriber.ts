@@ -60,17 +60,20 @@ export async function createTranscriber(
     }
 
     // Detect if we're asking something for the LLM
-    setLlamaActive(turn.transcript.toLowerCase().indexOf('mj') > 0);
+    setLlamaActive(true);
 
     if (turn.end_of_turn) {
       // Final transcript (end of turn)
       console.log('[Turn] Final:', turn.transcript);
       setTranscribedText(turn.transcript);
-      
-      if (turn.transcript.toLowerCase().indexOf('mj') > 0) {
+      try{
         console.log('Setting prompt to: ', turn.transcript);
         processPrompt(turn.transcript);
       }
+      catch (error) {
+        console.error('Error setting prompt:', error);
+      }
+      
     } else {
       // Ongoing turn  
       // console.log('[Turn] Partial:', turn.transcript);
