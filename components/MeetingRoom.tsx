@@ -51,9 +51,10 @@ const MeetingRoom = () : JSX.Element => {
   const [transcriber, setTranscriber] = useState<Transcriber | undefined>(undefined);
   const [mic, setMic] = useState<ReturnType<typeof createMicrophone> | undefined>(undefined);
 
+  // Now we are using Gemini API
   const processPrompt = useCallback(async (prompt: string) => {
     console.log('Processing prompt');
-    const response = await fetch('/api/lemurRequest', {
+    const response = await fetch('/api/geminiResponse', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt }),
@@ -65,25 +66,20 @@ const MeetingRoom = () : JSX.Element => {
       return;
     }
 
-    const responseText = await response.text();
-    if (!responseText) {
-      console.error('Empty response');
+    const data = await response.json();
+    if (!data) {
+      console.error('Empty result from API');
       return;
     }
 
-    try {
-      const { response: lemurResponse } = JSON.parse(responseText);
-      console.log('Lemur response found');
-      setLlmResponse(lemurResponse);
+    console.log("GEMINI RESPONSE FOUND!:", data.result);
+    setLlmResponse(data.result);
 
-      setTimeout(() => {
-        setLlmResponse('');
-        setLlmActive(false);
-        setTranscribedText('');
-      }, 7000);
-    } catch (error) {
-      console.error('JSON parse error:', error);
-    }
+    setTimeout(() => {
+      setLlmResponse('');
+      setLlmActive(false);
+      setTranscribedText('');
+    }, 7000);
   }, []);
   console.log('Process prompt found');
 
