@@ -14,6 +14,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Users, LayoutList, X, ChevronLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import TranscriptionToggle from './TranscriptionToggle';
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,8 +29,7 @@ import { cn } from '@/lib/utils';
 import { createTranscriber } from '@/helpers/createTranscriber';
 import { createMicrophone } from '@/helpers/createMicrophone';
 import { CheckList } from '@/lib/checklist';
-
-import ChecklistCard from './checkListCard';
+import ChecklistCard from './CheckListCard';
 
 // Infer correct type from your helper
 type Transcriber = Awaited<ReturnType<typeof createTranscriber>>;
@@ -194,29 +195,14 @@ const MeetingRoom = () : JSX.Element => {
 
   return (
     <div className="relative flex h-screen flex-col bg-gradient-to-br from-gray-900 to-gray-800">
-      {/* Toggle button */}
-      <button
-        className={`ml-8 border-2 border-black dark:bg-white rounded-full px-4 py-2 transition-colors ease-in-out duration-200 ${
-          robotActive ? 'bg-black text-white animate-pulse' : ''
-        }`}
-        onClick={() => switchRobot(robotActive)}
-      >
-        {robotActive ? 'Transcription ON' : 'Transcription OFF'}
-      </button>
-
-      <div className='ml-8 border-2 border-black dark:bg-white rounded-full px-4 py-2 transition-colors ease-in-out duration-200'>
-        {transcribedText}
-        {llmResponse}
-      </div>
-
-      {/* LLM response */}
-      {llmResponse && (
-        <div className="absolute mx-8 top-8 right-8 bg-white text-black p-4 rounded-lg shadow-md">
-          {llmResponse}
-        </div>
-      )}
-
+      <div className='flex items-center justify-center'>
+      <TranscriptionToggle
+              active={robotActive}
+              onToggle={() => switchRobot(robotActive)}
+            />
+            
       <ChecklistCard status={checklist} className="ml-8 mt-3"/>
+      </div>
 
       {/* Transcript */}
       {transcribedText && (
