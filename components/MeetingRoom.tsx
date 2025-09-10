@@ -26,11 +26,24 @@ import { cn } from '@/lib/utils';
 
 import { createTranscriber } from '@/helpers/createTranscriber';
 import { createMicrophone } from '@/helpers/createMicrophone';
+import { CheckList } from '@/lib/checklist';
+
+import ChecklistCard from './checkListCard';
 
 // Infer correct type from your helper
 type Transcriber = Awaited<ReturnType<typeof createTranscriber>>;
 
 type CallLayoutType = 'grid' | 'speaker-left' | 'speaker-right';
+
+type checkList = {
+  name : boolean;
+  age : boolean;
+  place : boolean;
+}
+
+type GeminiResponse = {
+  result : checkList;
+}
 
 const MeetingRoom = () : JSX.Element => {
   const searchParams = useSearchParams();
@@ -41,6 +54,12 @@ const MeetingRoom = () : JSX.Element => {
   const { useCallCallingState, useMicrophoneState } = useCallStateHooks();
   const callingState = useCallCallingState();
   const call = useCall();
+
+  const [checklist, setChecklist] = useState<checkList> ({
+    name : false,
+    age : false,
+    place : false,
+  });
 
   const { mediaStream } = useMicrophoneState();
 
@@ -53,35 +72,48 @@ const MeetingRoom = () : JSX.Element => {
 
   // Now we are using Gemini API
   const processPrompt = useCallback(async (prompt: string) => {
-    console.log('Processing prompt');
-    const response = await fetch('/api/geminiResponse', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
-    });
-    console.log('Response found');
-
-    if (!response.ok) {
-      console.error('Response not ok:', response.status);
-      return;
+    try {
+      const response = await fetch('/api/geminiResponse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+  
+      if (!response.ok) {
+        console.error('Gemini API not ok:', response.status);
+        return;
+      }
+  
+      const data: GeminiResponse = await response.json();
+      if (!data?.result) {
+        console.error('Empty result from API');
+        return;
+      }
+  
+      // Merge: once true, keep true
+      setChecklist(prev => ({
+        name: prev.name || !!data.result.name,
+        age: prev.age || !!data.result.age,
+        place: prev.place || !!data.result.place,
+      }));
+  
+      // (Optional) show a short textual summary
+      const summary: string[] = [];
+      if (data.result.name) summary.push('Name ✓');
+      if (data.result.age) summary.push('Age ✓');
+      if (data.result.place) summary.push('Place ✓');
+      setLlmResponse(summary.join('  '));
+  
+      // clear the banner after a few seconds
+      setTimeout(() => {
+        setLlmResponse('');
+        setLlmActive(false);
+        setTranscribedText('');
+      }, 4000);
+    } catch (e) {
+      console.error('processPrompt error:', e);
     }
-
-    const data = await response.json();
-    if (!data) {
-      console.error('Empty result from API');
-      return;
-    }
-
-    console.log("GEMINI RESPONSE FOUND!:", data.result);
-    setLlmResponse(data.result);
-
-    setTimeout(() => {
-      setLlmResponse('');
-      setLlmActive(false);
-      setTranscribedText('');
-    }, 7000);
-  }, []);
-  console.log('Process prompt found');
+  }, []);  
 
   const initializeAssemblyAI = useCallback(async () => {
     if (!mediaStream) {
@@ -183,6 +215,8 @@ const MeetingRoom = () : JSX.Element => {
           {llmResponse}
         </div>
       )}
+
+      <ChecklistCard status={checklist} className="ml-8 mt-3"/>
 
       {/* Transcript */}
       {transcribedText && (
