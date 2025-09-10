@@ -195,13 +195,19 @@ const MeetingRoom = () : JSX.Element => {
 
   return (
     <div className="relative flex h-screen flex-col bg-gradient-to-br from-gray-900 to-gray-800">
-      <div className='flex items-center justify-center'>
-      <TranscriptionToggle
-              active={robotActive}
-              onToggle={() => switchRobot(robotActive)}
-            />
-            
-      <ChecklistCard status={checklist} className="ml-8 mt-3"/>
+      {/* Fixed Header with Controls */}
+      <div className="relative z-50 flex items-center justify-center p-4 bg-gray-900/90 backdrop-blur-sm">
+        <div className="flex items-center gap-4">
+          <TranscriptionToggle
+            active={robotActive}
+            onToggle={() => switchRobot(robotActive)}
+          />
+          
+          <ChecklistCard 
+            status={checklist} 
+            className="w-auto"
+          />
+        </div>
       </div>
 
       {/* Transcript */}
@@ -216,7 +222,7 @@ const MeetingRoom = () : JSX.Element => {
       {/* Main Content */}
       <div className="relative flex flex-1 overflow-hidden">
         <motion.div className="relative flex flex-1 items-center justify-center p-4">
-          <div className="relative h-full w-full max-w-[1440px]">
+          <div className="relative h-full w-full max-w-[1440px] z-10">
             <CallLayout />
           </div>
         </motion.div>
