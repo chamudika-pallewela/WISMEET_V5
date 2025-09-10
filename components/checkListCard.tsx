@@ -4,11 +4,30 @@ import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 
-// or wherever you put the type
+// Mortgage triage checklist type
 type checkList = {
-    name : boolean;
-    age : boolean;
-    place : boolean;
+    asked_if_speaking_to_customer: boolean;
+    asked_if_customer_name: boolean;
+    asked_if_call_time_okay: boolean;
+    asked_purchase_or_remortgage: boolean;
+    asked_first_time_buyer_or_home_mover: boolean;
+    asked_if_found_property: boolean;
+    asked_property_price_range: boolean;
+    asked_deposit_amount: boolean;
+    asked_outstanding_mortgage_balance: boolean;
+    asked_estimated_property_value: boolean;
+    asked_current_lender: boolean;
+    asked_if_on_fixed_deal_and_end_date: boolean;
+    asked_estimated_rental_income: boolean;
+    asked_if_property_on_standard_AST: boolean;
+    asked_how_many_other_properties: boolean;
+    asked_if_properties_are_let: boolean;
+    asked_if_customer_married: boolean;
+    asked_if_joint_mortgage: boolean;
+    asked_customer_age_or_partner_age: boolean;
+    asked_if_has_children_and_expenses: boolean;
+    asked_customer_nationality: boolean;
+    asked_about_visa_duration_or_residency: boolean;
 }
 
 type Props = {
@@ -18,15 +37,34 @@ type Props = {
 };
 
 const ITEMS: { key: keyof checkList; label: string }[] = [
-  { key: "name",  label: "Name"  },
-  { key: "age",   label: "Age"   },
-  { key: "place", label: "Place" },
+  { key: "asked_if_speaking_to_customer", label: "Speaking to customer" },
+  { key: "asked_if_customer_name", label: "Customer name" },
+  { key: "asked_if_call_time_okay", label: "Call time okay" },
+  { key: "asked_purchase_or_remortgage", label: "Purchase or remortgage" },
+  { key: "asked_first_time_buyer_or_home_mover", label: "First time buyer status" },
+  { key: "asked_if_found_property", label: "Found property" },
+  { key: "asked_property_price_range", label: "Property price range" },
+  { key: "asked_deposit_amount", label: "Deposit amount" },
+  { key: "asked_outstanding_mortgage_balance", label: "Outstanding mortgage balance" },
+  { key: "asked_estimated_property_value", label: "Estimated property value" },
+  { key: "asked_current_lender", label: "Current lender" },
+  { key: "asked_if_on_fixed_deal_and_end_date", label: "Fixed deal and end date" },
+  { key: "asked_estimated_rental_income", label: "Estimated rental income" },
+  { key: "asked_if_property_on_standard_AST", label: "Property on standard AST" },
+  { key: "asked_how_many_other_properties", label: "Number of other properties" },
+  { key: "asked_if_properties_are_let", label: "Properties are let" },
+  { key: "asked_if_customer_married", label: "Customer married" },
+  { key: "asked_if_joint_mortgage", label: "Joint mortgage" },
+  { key: "asked_customer_age_or_partner_age", label: "Customer/partner age" },
+  { key: "asked_if_has_children_and_expenses", label: "Children and expenses" },
+  { key: "asked_customer_nationality", label: "Customer nationality" },
+  { key: "asked_about_visa_duration_or_residency", label: "Visa duration/residency" },
 ];
 
-export default function ChecklistCard({ status, title = "Checklist", className }: Props) {
+export default function ChecklistCard({ status, title = "Mortgage Triage Checklist", className }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   
-  // Filter out completed items
+  // Filter out completed items (asked questions disappear)
   const pendingItems = ITEMS.filter(({ key }) => !status[key]);
   const completedCount = ITEMS.length - pendingItems.length;
 
