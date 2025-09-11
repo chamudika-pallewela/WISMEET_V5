@@ -72,18 +72,19 @@ export default function ChecklistCard({ status, title = "Mortgage Triage Checkli
   const visibleItems = pendingItems.slice(0, 10);
 
   return (
-    <div className={`relative rounded-xl bg-white/90 text-black shadow min-w-[200px] ${className || ""}`}>
+    <div className={`relative rounded-md bg-white/90 text-black shadow min-w-[200px] ${className || ""}`}>
       <motion.button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 rounded-xl transition-colors"
-        whileHover={{ scale: 1.01 }}
+        className="w-full h-10 px-4 py-2 flex items-center justify-between hover:bg-gray-50 rounded-md transition-colors"
         whileTap={{ scale: 0.99 }}
       >
-        <div className="flex items-center gap-3">
-          <p className="font-semibold">{title}</p>
+        <div className="flex items-center gap-3 min-w-0">
+          <p className="font-medium truncate flex-1">
+            {title}
+          </p>
           {completedCount > 0 && (
-            <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-              {completedCount}/{ITEMS.length} completed
+            <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 ml-1">
+              {completedCount}/{ITEMS.length}
             </span>
           )}
         </div>
@@ -102,11 +103,14 @@ export default function ChecklistCard({ status, title = "Mortgage Triage Checkli
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="absolute bottom-full left-0 right-0 z-50 mb-2 max-h-[60vh] overflow-hidden rounded-xl bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200"
+            className="absolute bottom-full left-0 right-0 z-50 mb-2 max-h-[60vh] overflow-hidden rounded-md bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200"
           >
-            <div className="px-4 pb-3">
+            <div className="px-4 pt-3 pb-3">
               {pendingItems.length > 0 ? (
-                <ul className="flex flex-col gap-2 max-h-[300px] overflow-y-auto scrollbar-hide scroll-smooth">
+                <div className="relative">
+                  <ul className="flex flex-col gap-2 max-h-[300px] overflow-y-auto scrollbar-hide scroll-smooth">
+                    {/* Gradient mask for cutoff effect */}
+                    <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white/95 to-transparent pointer-events-none z-10"></div>
                   <AnimatePresence mode="popLayout">
                     {visibleItems.map(({ key, label }, index) => {
                       const done = !!status[key];
@@ -142,9 +146,9 @@ export default function ChecklistCard({ status, title = "Mortgage Triage Checkli
                         >
                           <motion.div
                             className={[
-                              "relative select-none rounded-full border px-3 py-1 text-sm",
-                              "pr-7", // room for the check icon
-                              done ? "border-gray-400 text-gray-600" : "border-black",
+                              "relative select-none rounded-full px-4 py-2 bg-white/50 backdrop-blur-sm",
+                              "pr-8", // room for the check icon
+                              done ? "text-gray-600" : "text-black",
                             ].join(" ")}
                             whileHover={{ scale: 1.02 }}
                             transition={{ type: "spring", stiffness: 400, damping: 25 }}
@@ -183,7 +187,8 @@ export default function ChecklistCard({ status, title = "Mortgage Triage Checkli
                       </motion.li>
                     )}
                   </AnimatePresence>
-                </ul>
+                  </ul>
+                </div>
               ) : (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
