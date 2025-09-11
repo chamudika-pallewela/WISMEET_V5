@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils';
 
 import { createTranscriber } from '@/helpers/createTranscriber';
 import { createMicrophone } from '@/helpers/createMicrophone';
-import ChecklistCard from './CheckListCard';
+import ChecklistCard from './checkListCard';
 
 // Infer correct type from your helper
 type Transcriber = Awaited<ReturnType<typeof createTranscriber>>;
@@ -273,17 +273,6 @@ const MeetingRoom = () : JSX.Element => {
     <div className="relative flex h-screen flex-col bg-gradient-to-br from-gray-900 to-gray-800">
       {/* Fixed Header with Controls */}
       <div className="relative z-50 flex items-center justify-center p-4 bg-gray-900/90 backdrop-blur-sm">
-        <div className="flex items-center gap-4">
-          <TranscriptionToggle
-            active={robotActive}
-            onToggle={() => switchRobot(robotActive)}
-          />
-          
-          <ChecklistCard 
-            status={checklist} 
-            className="w-auto"
-          />
-        </div>
       </div>
 
       {/* Transcript */}
@@ -292,17 +281,27 @@ const MeetingRoom = () : JSX.Element => {
       {/* Main Content */}
       <div className="relative flex flex-1 overflow-hidden">
         <motion.div className="relative flex flex-1 items-center justify-center p-4">
-          <div className="relative h-full w-full max-w-[1440px] z-10">
+          <div className="relative h-full w-full max-w-[1440px]">
             <CallLayout />
           </div>
         </motion.div>
       </div>
 
       {/* Controls */}
-      <motion.div className="relative flex flex-wrap items-center justify-center gap-2 bg-gray-900/90 p-4 backdrop-blur-sm md:gap-4">
+      <motion.div className="relative flex flex-wrap items-center justify-center gap-3 bg-gray-900/90 p-4 backdrop-blur-sm md:gap-4">
         <CallControls onLeave={() => router.push('/')} />
         <CallStatsButton />
         {!isPersonalRoom && <EndCallButton />}
+
+        <TranscriptionToggle
+          active={robotActive}
+          onToggle={() => switchRobot(robotActive)}
+        />
+
+        <ChecklistCard
+          status={checklist}
+          className="w-auto max-w-xs h-10"
+        />
       </motion.div>
     </div>
   );

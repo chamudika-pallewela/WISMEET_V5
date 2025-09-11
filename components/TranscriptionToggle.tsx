@@ -10,7 +10,7 @@ export default function TranscriptionToggle({ active, onToggle }: Props) {
   return (
     <motion.button
       onClick={onToggle}
-      className={`ml-8 relative overflow-hidden rounded-md px-6 py-3 font-medium transition-all duration-300 ${
+      className={`relative overflow-hidden rounded-md px-6 py-2 h-10 font-medium transition-all duration-300 ${
         active 
           ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg shadow-green-500/25' 
           : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
